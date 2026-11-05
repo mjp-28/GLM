@@ -59,6 +59,7 @@
 #include "glm_ptm.h"
 
 #include "glm_debug.h"
+#include "glm_ss_density.h"
 
 //#define _WQ_VarsTmp(i,j,k)  WQ_VarsTmp[_IDX_3d(Num_WQ_Vars,NumInf,MaxPar,i,j,k)]
 
@@ -676,8 +677,9 @@ static int insert_inflow(int k, //# Inflow parcel counter
     //# Set the depth the inflow aliquot reached on previous step/day (DOld)
     Inflows[iRiver].DOld[k] = Inflows[iRiver].DDown[k];
 
-    //# Calculate inflow density for this inflow aliquot
+    //# Calculate inflow density for this inflow aliquot (plus its SS, if on)
     Inflow_Density = calculate_density(Inflows[iRiver].TDown[k], Inflows[iRiver].SDown[k]);
+    Inflow_Density += ss_density_excess(Inflows[iRiver].WQDown[k], Inflow_Density);
 
     //# Calculate the layer in which this element starts the day.
     for (Layer_t0 = botmLayer; Layer_t0 <= surfLayer; Layer_t0++)
@@ -763,7 +765,6 @@ static int insert_inflow(int k, //# Inflow parcel counter
                              Inflow_Density, Lake[Layer].Salinity, Delta_Q, Lake[Layer].Density);
         Inflow_Temp = combine(Inflow_Temp,
                              Inflow_Flowrate, Inflow_Density, Lake[Layer].Temp, Delta_Q, Lake[Layer].Density);
-        Inflow_Density = calculate_density(Inflow_Temp, Inflow_Salinity);
 
         //# Update other water attributes. With inflow_wq_entrain_fix the parcel is
         //# weighted by its volume before entrainment (Q : Delta_Q), consistent with
@@ -779,6 +780,10 @@ static int insert_inflow(int k, //# Inflow parcel counter
         if ( !inflow_wq_entrain_fix )
             for (wqidx = 0; wqidx < Num_WQ_Vars; wqidx++)
                 WQ_VarsS[wqidx] = combine_vol(WQ_VarsS[wqidx], Inflow_Flowrate, _WQ_Vars(wqidx, Layer), Delta_Q);
+
+        //# New density of the diluted parcel (after its WQ, incl. SS, is mixed)
+        Inflow_Density = calculate_density(Inflow_Temp, Inflow_Salinity);
+        Inflow_Density += ss_density_excess(WQ_VarsS, Inflow_Density);
 
         //# Calculate energy of inflowing streams.
         if (Layer == botmLayer)
@@ -908,6 +913,7 @@ AED_REAL do_inflows()
             Alpha = Inflows[iRiver].Alpha;
             Phi = Inflows[iRiver].Phi;
             Inflow_Density = calculate_density(Inflows[iRiver].TemInf,Inflows[iRiver].SalInf);
+            Inflow_Density += ss_density_excess(Inflows[iRiver].WQInf, Inflow_Density);
             //# Reduced gravity of inflow (Eq. X in GLM manual)
             Inflow_gprime_t0 = gprime(Lake[surfLayer].Density,Inflow_Density);
 
@@ -1004,18 +1010,21 @@ AED_REAL do_inflows()
                 for (Layer_subm = botmLayer; Layer_subm <= surfLayer; Layer_subm++)
                     if (Lake[Layer_subm].Height >= Inflows[iRiver].SubmHeight) break;
 
+                Inflow_Density = calculate_density(Inflows[iRiver].TemInf, Inflows[iRiver].SalInf);
+                Inflow_Density += ss_density_excess(Inflows[iRiver].WQInf, Inflow_Density);
+
                 Lake[Layer_subm].Temp = combine(Lake[Layer_subm].Temp, Lake[Layer_subm].LayerVol, Lake[Layer_subm].Density,
                                                Inflows[iRiver].TemInf, (Inflows[iRiver].FlowRate*Inflows[iRiver].Factor),
-                                               calculate_density(Inflows[iRiver].TemInf, Inflows[iRiver].SalInf));
+                                               Inflow_Density);
                 Lake[Layer_subm].Salinity = combine(Lake[Layer_subm].Salinity, Lake[Layer_subm].LayerVol, Lake[Layer_subm].Density,
                                                Inflows[iRiver].SalInf, (Inflows[iRiver].FlowRate*Inflows[iRiver].Factor),
-                                               calculate_density(Inflows[iRiver].TemInf, Inflows[iRiver].SalInf));
+                                               Inflow_Density);
 
                 for (wqidx = 0; wqidx < Num_WQ_Vars; wqidx++)
                     _WQ_Vars(wqidx, Layer_subm) = combine_vol(_WQ_Vars(wqidx, Layer_subm), Lake[Layer_subm].LayerVol,
                                                Inflows[iRiver].WQInf[wqidx], (Inflows[iRiver].FlowRate*Inflows[iRiver].Factor));
 
-                Lake[Layer_subm].Density = calculate_density(Lake[Layer_subm].Temp, Lake[Layer_subm].Salinity);
+                Lake[Layer_subm].Density = layer_density(Layer_subm);
                 Lake[Layer_subm].LayerVol = Lake[Layer_subm].LayerVol+(Inflows[iRiver].FlowRate*Inflows[iRiver].Factor);
 
                 if ( ptm_sw ) {
