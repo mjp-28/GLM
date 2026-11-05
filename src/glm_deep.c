@@ -45,6 +45,7 @@
 #include "glm_mixu.h"
 #include "glm_util.h"
 #include "aed_time.h"
+#include "glm_ss_density.h"
 
 #if DEBUGDEEP
   #define dbgprt(...) fprintf(stderr, __VA_ARGS__)
@@ -209,7 +210,7 @@ void do_deep_mixing()
             _WQ_Vars(j-2,i) = _Scalars(i,j);
 
         //# Calculate the new densities
-        Lake[i].Density = calculate_density(Lake[i].Temp,Lake[i].Salinity);
+        Lake[i].Density = layer_density(i);
     }
 
     //# Check for instabilities - call check_layer_stability to mix
@@ -347,6 +348,7 @@ void do_dissipation()
     AED_REAL uStar;
     AED_REAL dz_top;
     AED_REAL Ssum;
+    AED_REAL SSsum;
     AED_REAL SMLOC;
     AED_REAL Sigma0M;
     AED_REAL Sigma2M;
@@ -405,11 +407,12 @@ void do_dissipation()
     CentreMassMIX = zero;
     Tsum  = zero;
     Ssum  = zero;
+    SSsum = zero;
     VMsum = zero;
 
     //# Calculate first moments
     for (i = 0; i < NumLayers; i++) {
-        add_this_layer(&VMsum, &Tsum, &Ssum, &VMLOC, &TMLOC, &SMLOC, &DFLOC, i);
+        add_this_layer(&VMsum, &Tsum, &Ssum, &SSsum, &VMLOC, &TMLOC, &SMLOC, &DFLOC, i);
         CentreMassSML = CentreMassSML + Lake[i].MeanHeight * (Lake[i].Density - rho0) * Lake[i].LayerVol;
         CentreMassMIX = CentreMassMIX + Lake[i].MeanHeight * Lake[i].LayerVol;
     }
@@ -544,7 +547,7 @@ void check_layer_stability()
             Lake[k-1].MeanHeight = (Lake[k-1].Height + Lake[k-2].Height) / 2.0;
         else
             Lake[k-1].MeanHeight = Lake[0].Height / 2.0;
-        Lake[k-1].Density = calculate_density(Lake[k-1].Temp, Lake[k-1].Salinity);
+        Lake[k-1].Density = layer_density(k-1);
         Lake[k-1].Epsilon = Lake[k].Epsilon;
 
         //# adjust layer numbering of layers above mixing include water quality and particles

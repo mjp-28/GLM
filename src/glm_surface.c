@@ -47,6 +47,7 @@
 #include "glm_wqual.h"  // for sediment heating - move?
 
 #include "glm_debug.h"
+#include "glm_ss_density.h"
 
 #if DEBUG
 #define dbgprt(...) fprintf(stderr, __VA_ARGS__)
@@ -264,8 +265,7 @@ void do_surface_thermodynamics(int jday, int iclock, int LWModel,
                                        Lake[surfLayer].LayerVol,
                                        zero, RunoffFlowRate);
 
-        Lake[surfLayer].Density = calculate_density(Lake[surfLayer].Temp,
-                                                    Lake[surfLayer].Salinity);
+        Lake[surfLayer].Density = layer_density(surfLayer);
         Lake[surfLayer].LayerVol = Lake[surfLayer].LayerVol+RunoffFlowRate;
 
         Lake[botmLayer].Vol1 = Lake[botmLayer].LayerVol;
@@ -1318,7 +1318,7 @@ void do_surface_thermodynamics(int jday, int iclock, int LWModel,
 
     //# Recalculate densities
     for (i = botmLayer; i <= surfLayer; i++)
-        Lake[i].Density = calculate_density(Lake[i].Temp,Lake[i].Salinity);
+        Lake[i].Density = layer_density(i);
 
     //if (littoral_sw) {
     //    onshoreDensity = calculate_density(Lake[onshoreLayer].Temp,Lake[surfLayer].Salinity);
@@ -1547,7 +1547,7 @@ AED_REAL calculate_qsw(int kDays,          // Days since start of year for yeste
  ******************************************************************************/
 void recalc_surface_salt_wq()
 {
-    AED_REAL OldVol, AddDensity, WaterMass;
+    AED_REAL OldVol, AddDensity, WaterMass, SurfDensity;
     int wqidx;
 
     OldVol = Lake[surfLayer].LayerVol;
@@ -1556,11 +1556,15 @@ void recalc_surface_salt_wq()
 
     AddDensity = calculate_density(Lake[surfLayer].Temp, zero);
 
-    WaterMass = OldVol * (Lake[surfLayer].Density - AddDensity) +
+    //# Salt mass is taken from the density excess over fresh water, so any
+    //# SS contribution (ss_density) must not be counted as salt
+    SurfDensity = Lake[surfLayer].Density - ss_layer_excess(surfLayer, Lake[surfLayer].Density);
+
+    WaterMass = OldVol * (SurfDensity - AddDensity) +
                           Lake[surfLayer].LayerVol * AddDensity;
 
     Lake[surfLayer].Salinity = Lake[surfLayer].Salinity *
-                              (Lake[surfLayer].Density / WaterMass) * OldVol;
+                              (SurfDensity / WaterMass) * OldVol;
 
     /*------------------------------------------------------------------------*
      * The water quality variables need the same treatment as salinity: a  *

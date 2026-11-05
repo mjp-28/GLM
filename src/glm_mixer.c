@@ -57,6 +57,7 @@
 #define dbgprt(...) /* __VA_ARGS__ */
 
 #include "glm_debug.h"
+#include "glm_ss_density.h"
 
 /******************************************************************************/
 
@@ -111,6 +112,7 @@ static AED_REAL FirstMom;    //# Metalimnion 1st momement of density above the b
 static AED_REAL VMsum;       //# Cumulative volumetric mass of mixed layer
 static AED_REAL Tsum;        //# Mean Temperature of cumulative volume of mixed layer
 static AED_REAL Ssum;        //# Mean Salinity of cumulative volume of mixed layer
+static AED_REAL SSsum;       //# Cumulative SS density excess of mixed layer (ss_density)
 
 /*============================================================================*/
 
@@ -182,7 +184,7 @@ static int convective_overturn(int *_Epi_botmLayer, int *_Meta_topLayer,
         Epi_botmLayer = surfLayer - i;
 
         //# Add new layers to the upper mixed layer, and return updated density
-        add_this_layer(&VMsum, &Tsum, &Ssum, &Mass_Epi,
+        add_this_layer(&VMsum, &Tsum, &Ssum, &SSsum, &Mass_Epi,
                        &MeanTemp, &MeanSalt, &Dens_Epil, Epi_botmLayer);
 
         //# Compute the 0th & 1st moments of density (about the bottom) (Eq 32)
@@ -356,7 +358,7 @@ static int stirring(int *_Epi_botmLayer, int *_Meta_topLayer, AED_REAL *_Dens_Ep
                                        Energy_AvailableMix,Energy_RequiredMix,Meta_topLayer,surfLayer,Epi_botmLayer);
 
         //# Entrain the layer Meta_topLayer (k-1) into the SML
-        add_this_layer(&VMsum,&Tsum,&Ssum,&Mass_Epi,&MeanTemp,&MeanSalt,&Dens_Epil,Meta_topLayer);
+        add_this_layer(&VMsum,&Tsum,&Ssum,&SSsum,&Mass_Epi,&MeanTemp,&MeanSalt,&Dens_Epil,Meta_topLayer);
         average_layer(&Meta_topLayer,&Epi_botmLayer,MeanTemp,MeanSalt,Dens_Epil);
 
         _DBG_MIXER_(2, _DBG_LOOP_);
@@ -625,7 +627,7 @@ static int shear_production(int Mixer_Count, int *_Epi_botmLayer, int *_Meta_top
         if (Energy_AvailableMix < Energy_RequiredMix) break;
 
         //# Entrain layer Meta_topLayer
-        add_this_layer(&VMsum,&Tsum,&Ssum,&Mass_Epi,&MeanTemp,&MeanSalt,&Dens_Epil,Meta_topLayer);
+        add_this_layer(&VMsum,&Tsum,&Ssum,&SSsum,&Mass_Epi,&MeanTemp,&MeanSalt,&Dens_Epil,Meta_topLayer);
         average_layer(&Meta_topLayer,&Epi_botmLayer,MeanTemp,MeanSalt,Dens_Epil);
 
         //# Just used energy to entrain another layer so no longer available
@@ -884,11 +886,11 @@ static AED_REAL kelvin_helmholtz(int *Meta_topLayer, int *Epi_botmLayer, AED_REA
                                 Lake[k1-1].Temp, Lake[k1-1].LayerVol, Lake[k1-1].Density);
         Lake[k1].Salinity = combine(Lake[k1].Salinity,   Lake[k1].LayerVol,   Lake[k1].Density,
                                     Lake[k1-1].Salinity, Lake[k1-1].LayerVol, Lake[k1-1].Density);
-        Lake[k1].Density = calculate_density(Lake[k1].Temp,Lake[k1].Salinity);
 
         for (wqvidx=0; wqvidx < Num_WQ_Vars; wqvidx++)
             _WQ_Vars(wqvidx,k1) = combine_vol(_WQ_Vars(wqvidx,k1),   Lake[k1].LayerVol,
                                               _WQ_Vars(wqvidx,k1-1), Lake[k1-1].LayerVol);
+        Lake[k1].Density = layer_density(k1);   //# after WQ (incl. SS) is mixed
 
         Lake[k1-1].Density = Lake[k1].Density;
         Lake[k1-1].Temp = Lake[k1].Temp;
@@ -909,11 +911,11 @@ static AED_REAL kelvin_helmholtz(int *Meta_topLayer, int *Epi_botmLayer, AED_REA
                 Lake[n].Salinity = combine(Lake[n].Salinity,Lake[n].LayerVol,
                                            Lake[n].Density,Lake[n+1].Salinity,
                                            Lake[n+1].LayerVol,Lake[n+1].Density);
-                Lake[n].Density = calculate_density(Lake[n].Temp,Lake[n].Salinity);
 
                 for (wqvidx=0; wqvidx < Num_WQ_Vars; wqvidx++)
                      _WQ_Vars(wqvidx,n) = combine_vol(_WQ_Vars(wqvidx,n),   Lake[n].LayerVol,
                                              _WQ_Vars(wqvidx,n+1), Lake[n+1].LayerVol);
+                Lake[n].Density = layer_density(n);   //# after WQ (incl. SS) is mixed
                 Lake[n+1].Density = Lake[n].Density;
                 Lake[n+1].Temp = Lake[n].Temp;
                 Lake[n+1].Salinity = Lake[n].Salinity;
@@ -972,6 +974,7 @@ static int mixed_layer_deepening(AED_REAL *WQ_VarsM, int Mixer_Count,
      **************************************************************************/
     Tsum  = zero;
     Ssum  = zero;
+    SSsum = zero;
     VMsum = zero;
     ZeroMom = zero;
     FirstMom = zero;

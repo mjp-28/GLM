@@ -2152,7 +2152,7 @@ void initialise_lake(int namlst)
 
     // calculate the density from the temp and salinity just read in
     for (i = botmLayer; i < NumLayers; i++)
-        Lake[i].Density = calculate_density(Lake[i].Temp, Lake[i].Salinity);
+        Lake[i].Density = layer_density(i);
 
     if (littoral_sw) {
         Lake[onshoreLayer].Temp = Lake[surfLayer].Temp;

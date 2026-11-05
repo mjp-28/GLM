@@ -52,6 +52,7 @@
 
 #include "glm_util.h"
 #include "glm_mixu.h"
+#include "glm_ss_density.h"
 
 //#define dbgprt(...) fprintf(stderr, __VA_ARGS__)
 #define dbgprt(...) /* __VA_ARGS__ */
@@ -146,7 +147,7 @@ void check_layer_thickness(void)
 //      for (wqidx = 0; wqidx < Num_WQD_Vars; wqidx++)
 //          _WQD_Vars(wqidx,j) = combine_vol(_WQD_Vars(wqidx,j), Lake[j].LayerVol, _WQD_Vars(wqidx,j+1), Lake[j+1].LayerVol);
 
-        Lake[j].Density = calculate_density(Lake[j].Temp, Lake[j].Salinity);
+        Lake[j].Density = layer_density(j);
         Lake[j].LayerVol = Lake[j].LayerVol + Lake[j+1].LayerVol;
         Lake[j].Height = Lake[j+1].Height;
         Lake[j].Vol1 = Lake[j+1].Vol1;
@@ -512,7 +513,7 @@ void insert(AED_REAL q, AED_REAL di, AED_REAL bsl, AED_REAL temp, AED_REAL salt,
         for (wqidx = 0; wqidx < Num_WQ_Vars; wqidx++)
             _WQ_Vars(wqidx,k) = combine_vol(_WQ_Vars(wqidx,k),Lake[k].LayerVol,wqx[wqidx],DVR[k]);
         // Density and Volume
-        Lake[k].Density=calculate_density(Lake[k].Temp,Lake[k].Salinity);
+        Lake[k].Density = layer_density(k);
         Lake[k].LayerVol=Lake[k].LayerVol+DVR[k];
     }
 

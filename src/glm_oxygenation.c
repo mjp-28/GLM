@@ -34,6 +34,7 @@
 #include "aed_csv.h"
 #include "glm_wqual.h"
 #include "glm_oxygenation.h"
+#include "glm_ss_density.h"
 
 /*----------------------------------------------------------------------------*
  * CSV bookkeeping for the direct-addition devices (Approach 2) and the        *
@@ -327,7 +328,7 @@ AED_REAL oxy_do_recirculation(AED_REAL day_fraction)
             _WQ_Vars(wqidx, L) = combine_vol(_WQ_Vars(wqidx, L), Lake[L].LayerVol,
                                              cap_wq[wqidx], drawn);
     }
-    Lake[L].Density = calculate_density(Lake[L].Temp, Lake[L].Salinity);
+    Lake[L].Density = layer_density(L);
     Lake[L].LayerVol = Lake[L].LayerVol + drawn;
 
     //# Update cumulative volumes and re-derive layer heights.

@@ -21,6 +21,7 @@
 #include "glm_util.h"
 #include "glm_input.h"
 #include "glm_mixu.h"
+#include "glm_ss_density.h"
 
 // Storage for intercepted outflow
 static AED_REAL stored_flow_rate  = 0.0;
@@ -147,7 +148,7 @@ void heat_pump_insert_inflow()
     }
 
     // Update layer density after mixing
-    Lake[Layer_inject].Density = calculate_density(Lake[Layer_inject].Temp, Lake[Layer_inject].Salinity);
+    Lake[Layer_inject].Density = layer_density(Layer_inject);
 
     // Add the volume back to the layer (mass conservation: outflow removed it, now we add it back)
     Lake[Layer_inject].LayerVol = Lake[Layer_inject].LayerVol + stored_flow_rate;

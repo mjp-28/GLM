@@ -41,6 +41,7 @@
 #include "aed_time.h"
 #include "glm_util.h"
 #include "glm_mixu.h"
+#include "glm_ss_density.h"
 
 
 /******************************************************************************
@@ -48,6 +49,7 @@
  * VMsum                              [UPDATED]                               *
  * Tsum                               [UPDATED]                               *
  * Ssum                               [UPDATED]                               *
+ * SSsum  :- sum of SS density excess [UPDATED] (stays 0 if ss_density off)   *
  * VMLOC  :- combined volumetric mass [RETURNED]                              *
  * TMLOC  :- Combined temperature     [RETURNED]                              *
  * SMLOC  :- Combined salinity        [RETURNED]                              *
@@ -56,7 +58,7 @@
  *                                                                            *
  ******************************************************************************/
 void add_this_layer(AED_REAL *VMsum, AED_REAL *Tsum,
-                    AED_REAL *Ssum, AED_REAL *VMLOC, AED_REAL *TMLOC,
+                    AED_REAL *Ssum, AED_REAL *SSsum, AED_REAL *VMLOC, AED_REAL *TMLOC,
                     AED_REAL *SMLOC, AED_REAL *DFLOC, int idx)
 {
     AED_REAL Layer_Mass;
@@ -66,12 +68,15 @@ void add_this_layer(AED_REAL *VMsum, AED_REAL *Tsum,
     *VMsum += Layer_Mass;
     *Tsum  += (Lake[idx].Temp * Layer_Mass);
     *Ssum  += (Lake[idx].Salinity * Layer_Mass);
+    if ( ss_density )   //# SS excess is linear in concentration, so it averages like T and S
+        *SSsum += ss_layer_excess(idx, calculate_density(Lake[idx].Temp, Lake[idx].Salinity)) * Layer_Mass;
 
     *VMLOC = *VMsum;            //# Combined volumetic mass
     *TMLOC = *Tsum / (*VMLOC);  //# Combined temperature
     *SMLOC = *Ssum / (*VMLOC);  //# Combined salinity
 
     *DFLOC = calculate_density(*TMLOC,*SMLOC);
+    if ( ss_density ) *DFLOC += *SSsum / (*VMLOC);
 }
 /*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 
@@ -173,7 +178,7 @@ void resize_internals(int icode, int lnu)
             Lake[surfLayer-1].Salinity =
                     combine(Lake[surfLayer-1].Salinity, Lake[surfLayer-1].LayerVol, Lake[surfLayer-1].Density,
                             Lake[surfLayer].Salinity,   Lake[surfLayer].LayerVol,   Lake[surfLayer].Density);
-            Lake[surfLayer-1].Density = calculate_density(Lake[surfLayer-1].Temp, Lake[surfLayer-1].Salinity);
+            Lake[surfLayer-1].Density = layer_density(surfLayer-1);
 
             NumLayers--;
             if (surfLayer < ln) {

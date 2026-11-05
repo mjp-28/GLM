@@ -66,6 +66,7 @@
 #include "glm_oxygenation.h"
 #include "glm_bubbler.h"
 #include "glm_restart.h"
+#include "glm_ss_density.h"
 #ifdef PLOTS
 #include <libplot.h>
 #include "glm_plot.h"
@@ -1038,6 +1039,9 @@ int do_subdaily_loop(int stepnum, int jday, int stoptime, int nsave, AED_REAL SW
          *## Start Water Quality calls                                        *
          **********************************************************************/
         if (wq_calc) wq_do_glm(&NumLayers);
+
+        //# WQ settling has moved SS, so update layer densities (ss_density only)
+        refresh_densities();
 
         //# If an output write is requested for the last time step of the day
         //# then do not output in the subdaily.  Output writing is moved to the

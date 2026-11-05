@@ -31,7 +31,7 @@
 #define _GLM_MIXU_H_
 
 void add_this_layer(AED_REAL *VMsum, AED_REAL *Tsum,
-                    AED_REAL *Ssum, AED_REAL *VMLOC, AED_REAL *TMLOC,
+                    AED_REAL *Ssum, AED_REAL *SSsum, AED_REAL *VMLOC, AED_REAL *TMLOC,
                     AED_REAL *SMLOC, AED_REAL *DFLOC, int idx);
 void average_layer(int *j1, int *k1,
                            AED_REAL MeanTemp, AED_REAL MeanSalt, AED_REAL Dens);
