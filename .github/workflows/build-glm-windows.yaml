@@ -35,7 +35,9 @@ env:
   LIBAED_DEMO_REPO: AquaticEcoDynamics/libaed-demo
   LIBAED_DEMO_REF: b8ffe38613d7491368725ad038db1508f0244bd0
   LIBAED_API_REPO: AquaticEcoDynamics/libaed-api
-  LIBAED_API_REF: 45e58edfb8c65fc9cd4af36d3c2a3b515675d787
+  # 5a59337 (30 Sep): the next commit (45e58ed) calls aed_calculate_domain,
+  # which libaed-water v3.0.1 does not have (it is only on libaed-water master)
+  LIBAED_API_REF: 5a5933788ffc6ec205490ddf4acc97025fa3ba47
   LIBUTIL_REPO: AquaticEcoDynamics/libutil
   LIBUTIL_REF: c8fe70efac4197f0ac5e1771536e6a0da257373b
   LIBPLOT_REPO: AquaticEcoDynamics/libplot
