@@ -1,0 +1,232 @@
+name: Build GLM (Windows)
+
+# Builds two Windows glm.exe binaries from this fork with identical libraries:
+#   * glm-ss-density : this branch (suspended-solids density)
+#   * glm-main       : the fork's main branch (baseline for comparison)
+# and attaches them to the workflow run as downloadable artifacts. Nothing is
+# published as a release.
+#
+# Adapted from limnotrack/AEME .github/workflows/build-glm-v4.yaml (Windows,
+# standard AED edition only). Library versions are pinned below; change a pin
+# deliberately (and note why in the commit message).
+#
+# Runs on every push to ss-density that touches the source, the Makefile or
+# this file. (A manual "Run workflow" button only appears if this file is also
+# on the repository's default branch.)
+
+on:
+  push:
+    branches: [ ss-density ]
+    paths:
+      - 'src/**'
+      - 'include/**'
+      - 'Makefile'
+      - '.github/workflows/build-glm-windows.yaml'
+  workflow_dispatch:
+
+env:
+  BASE_REF: main
+  # -- Sibling libraries (AquaticEcoDynamics), pinned to exact commits. --
+  # libaed-water: branch v3.0.1 as of 2026-11-05
+  LIBAED_WATER_REPO: AquaticEcoDynamics/libaed-water
+  LIBAED_WATER_REF: 8c268eae833f104e2c72bd13789c041821fa4e59
+  LIBAED_BENTHIC_REPO: AquaticEcoDynamics/libaed-benthic
+  LIBAED_BENTHIC_REF: 0cc90d424ffaf752527af137024ec581375486fa
+  LIBAED_DEMO_REPO: AquaticEcoDynamics/libaed-demo
+  LIBAED_DEMO_REF: b8ffe38613d7491368725ad038db1508f0244bd0
+  LIBAED_API_REPO: AquaticEcoDynamics/libaed-api
+  LIBAED_API_REF: 45e58edfb8c65fc9cd4af36d3c2a3b515675d787
+  LIBUTIL_REPO: AquaticEcoDynamics/libutil
+  LIBUTIL_REF: c8fe70efac4197f0ac5e1771536e6a0da257373b
+  LIBPLOT_REPO: AquaticEcoDynamics/libplot
+  LIBPLOT_REF: 2a540c7774d43d8a97e887c00324ed85538c7fd7
+  # AED_Tools is used only for ancillary/ (netcdf, hdf5, gd ... for MinGW);
+  # same pin as AEME's workflow.
+  AED_TOOLS_REPO: AquaticEcoDynamics/AED_Tools
+  AED_TOOLS_REF: cf91a0c411d7299b48b85397445f25eda965308e
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      ROOT: ${{ github.workspace }}
+
+    steps:
+      # ---------------------------------------------------------------------
+      # 1. Toolchain
+      # ---------------------------------------------------------------------
+      - name: "Toolchain: install make/mingw/cmake via chocolatey"
+        shell: pwsh
+        run: |
+          choco install -y make
+          choco install -y mingw
+          choco install -y cmake --installargs 'ADD_CMAKE_TO_PATH=System'
+
+      - name: "Toolchain: PATH + compiler env"
+        run: |
+          echo "C:\ProgramData\mingw64\mingw64\bin" >> "$GITHUB_PATH"
+          echo "C:\Program Files\CMake\bin" >> "$GITHUB_PATH"
+          for v in FC F77 F90 F95; do echo "$v=gfortran" >> "$GITHUB_ENV"; done
+          echo "CC=gcc" >> "$GITHUB_ENV"
+
+      - name: Sanity-check toolchain
+        run: |
+          gcc --version | head -1
+          gfortran --version | head -1
+          make --version | head -1
+          cmake --version | head -1
+
+      # ---------------------------------------------------------------------
+      # 2. Sources: this branch, the baseline, and the sibling libraries
+      # ---------------------------------------------------------------------
+      - name: Checkout this branch (GLM)
+        uses: actions/checkout@v4
+        with:
+          path: GLM
+
+      - name: Checkout baseline (GLM_base = ${{ env.BASE_REF }})
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BASE_REF }}
+          path: GLM_base
+
+      - name: Checkout sibling libraries (pinned)
+        working-directory: ${{ env.ROOT }}
+        run: |
+          checkout_repo () {
+            git clone "https://github.com/$1.git" "$3"
+            git -C "$3" checkout "$2"
+          }
+          checkout_repo "$LIBAED_WATER_REPO"   "$LIBAED_WATER_REF"   libaed-water
+          checkout_repo "$LIBAED_BENTHIC_REPO" "$LIBAED_BENTHIC_REF" libaed-benthic
+          checkout_repo "$LIBAED_DEMO_REPO"    "$LIBAED_DEMO_REF"    libaed-demo
+          checkout_repo "$LIBAED_API_REPO"     "$LIBAED_API_REF"     libaed-api
+          checkout_repo "$LIBUTIL_REPO"        "$LIBUTIL_REF"        libutil
+          checkout_repo "$LIBPLOT_REPO"        "$LIBPLOT_REF"        libplot
+          checkout_repo "$AED_TOOLS_REPO"      "$AED_TOOLS_REF"      AED_Tools
+
+      # ---------------------------------------------------------------------
+      # 3. Windows dependency chain (netcdf, hdf5, gd, ...), cached
+      # ---------------------------------------------------------------------
+      - name: Stage ancillary/ (from AED_Tools)
+        working-directory: ${{ env.ROOT }}
+        run: cp -r AED_Tools/ancillary ancillary
+
+      - name: Cache ancillary dependencies
+        id: ancillary-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/ancillary/lib
+            ${{ github.workspace }}/ancillary/include
+            ${{ github.workspace }}/ancillary/bin
+            ${{ github.workspace }}/ancillary/share
+          key: glm-ancillary-windows-v1-${{ hashFiles('ancillary/sources/versions.inc') }}
+
+      - name: Build ancillary dependencies (first run only, ~20-30 min)
+        if: steps.ancillary-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ env.ROOT }}/ancillary
+        run: |
+          export FINALDIR="$ROOT/ancillary"
+          export CC=gcc
+          export FC=gfortran
+          ./build.sh --all
+
+      - name: Point build env at ancillary
+        run: |
+          echo "INCLUDES=-I${ROOT}/ancillary/include" >> "$GITHUB_ENV"
+          echo "LDFLAGS=-L${ROOT}/ancillary/lib" >> "$GITHUB_ENV"
+          echo "NETCDFHOME=${ROOT}/ancillary" >> "$GITHUB_ENV"
+          echo "${ROOT}/ancillary/bin" >> "$GITHUB_PATH"
+
+      # ---------------------------------------------------------------------
+      # 4. Libraries, in dependency order
+      # ---------------------------------------------------------------------
+      - name: Build libutil
+        run: make -C "$ROOT/libutil"
+
+      - name: Build libplot
+        run: make -C "$ROOT/libplot"
+
+      - name: Build libaed-water
+        run: make -C "$ROOT/libaed-water"
+
+      - name: Build libaed-benthic
+        run: make -C "$ROOT/libaed-benthic"
+
+      - name: Build libaed-demo
+        run: make -C "$ROOT/libaed-demo"
+
+      - name: Build libaed-api
+        run: |
+          make -C "$ROOT/libaed-api" AEDBENDIR=../libaed-benthic AEDDMODIR=../libaed-demo
+          make -C "$ROOT/libaed-api" NO_RIPARIAN=1 NO_LGT=1 NO_DEV=1 obj/aed_external.o
+
+      # ---------------------------------------------------------------------
+      # 5. GLM: this branch and the baseline, same libraries and flags
+      # ---------------------------------------------------------------------
+      - name: Build GLM (ss-density and baseline)
+        run: |
+          COMMON="WITH_AED=true WITH_API=true WITH_PLOTS=true WITH_XPLOTS=true \
+                  PLOTDIR=$ROOT/libplot UTILDIR=$ROOT/libutil \
+                  AEDBENDIR=$ROOT/libaed-benthic AEDDMODIR=$ROOT/libaed-demo"
+          for d in GLM GLM_base; do
+            echo "=== building $d"
+            ( cd "$ROOT/$d"
+              VER=$(grep GLM_VERSION src/glm.h | cut -f2 -d\")
+              ( cd win && sh ../vers.sh "$VER" ) || echo "vers.sh failed - using committed win/*.rc"
+              make glm $COMMON )
+          done
+
+      - name: Verify both binaries run
+        run: |
+          export PATH="$ROOT/ancillary/bin:$PATH"
+          for d in GLM GLM_base; do
+            echo "=== $d"
+            "$ROOT/$d/glm.exe" --version
+          done
+
+      # ---------------------------------------------------------------------
+      # 6. Package: exe + runtime DLLs + build record, one folder per build
+      # ---------------------------------------------------------------------
+      - name: Assemble distributable folders
+        run: |
+          record () {
+            echo "Built by .github/workflows/build-glm-windows.yaml (run $GITHUB_RUN_NUMBER, $(date -u +%F' '%T) UTC)"
+            echo "GLM            $1 @ $(git -C "$ROOT/$2" rev-parse HEAD)"
+            for lib in libaed-water libaed-benthic libaed-demo libaed-api libutil libplot AED_Tools; do
+              printf '%-14s %s\n' "$lib" "$(git -C "$ROOT/$lib" rev-parse HEAD)"
+            done
+            gcc --version | head -1
+          }
+          for pair in "glm-ss-density:GLM:$GITHUB_REF_NAME" "glm-main:GLM_base:$BASE_REF"; do
+            IFS=: read -r name dir ref <<< "$pair"
+            out="$ROOT/dist/$name"
+            mkdir -p "$out"
+            cp "$ROOT/$dir/glm.exe" "$out/"
+            cp "$ROOT/ancillary/bin/libgd.dll" "$out/"
+            cp "$ROOT/ancillary/bin/libnetcdf.dll" "$out/"
+            cp "C:/ProgramData/mingw64/mingw64/bin/libgfortran-5.dll" "$out/"
+            cp "C:/ProgramData/mingw64/mingw64/bin/libquadmath-0.dll" "$out/"
+            cp "C:/ProgramData/mingw64/mingw64/bin/libgcc_s_seh-1.dll" "$out/"
+            cp "C:/ProgramData/mingw64/mingw64/bin/libwinpthread-1.dll" "$out/"
+            record "$ref" "$dir" > "$out/BUILD_INFO.txt"
+            cat "$out/BUILD_INFO.txt"
+          done
+
+      - name: Upload glm-ss-density
+        uses: actions/upload-artifact@v4
+        with:
+          name: glm-ss-density-windows
+          path: dist/glm-ss-density
+          retention-days: 90
+
+      - name: Upload glm-main (baseline)
+        uses: actions/upload-artifact@v4
+        with:
+          name: glm-main-windows
+          path: dist/glm-main
+          retention-days: 90

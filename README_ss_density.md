@@ -128,6 +128,25 @@ These are only produced when `ss_density` is on.
 
 ## Building on Windows
 
+### Automatic build (GitHub Actions)
+
+Every push to `ss-density` that changes the source runs
+`.github/workflows/build-glm-windows.yaml` on GitHub's Windows machines. It
+builds two binaries with identical, pinned libraries (libaed-water branch
+`v3.0.1` at `8c268ea`, plus libaed-benthic, -demo, -api, libutil and libplot):
+
+- `glm-ss-density-windows`: this branch;
+- `glm-main-windows`: the fork's `main`, as a baseline for comparison.
+
+Download them from the run's page (Actions tab, then the run, then
+Artifacts). Each zip contains `glm.exe`, its DLLs and a `BUILD_INFO.txt`
+listing the exact commits used. Artifacts are kept for 90 days. The first
+run takes 20–30 minutes longer while it builds netCDF and the other
+dependencies; later runs reuse them. The workflow is adapted from
+limnotrack/AEME's `build-glm-v4.yaml`.
+
+### Manual build
+
 GLM is normally built from AED's **GLM-AED** bundle, which contains GLM and
 all the libraries it needs:
 
