@@ -144,6 +144,7 @@ AED_REAL XMoment1;
 //------------------------------------------------------------------------------
 
 AED_REAL einff;   //# change in potential energy (see do_inflows)
+CLOGICAL inflow_wq_entrain_fix = TRUE; //# dilute inflow WQ by the pre-entrainment parcel volume
 AED_REAL coef_mix_KH = 0.3;     //# Kelvin-Helmholtz billowing effects
 AED_REAL coef_mix_conv = 0.125; //# convective overturn
 AED_REAL coef_mix_shear = 0.2;  //# shear efficiency

@@ -765,13 +765,20 @@ static int insert_inflow(int k, //# Inflow parcel counter
                              Inflow_Flowrate, Inflow_Density, Lake[Layer].Temp, Delta_Q, Lake[Layer].Density);
         Inflow_Density = calculate_density(Inflow_Temp, Inflow_Salinity);
 
+        //# Update other water attributes. With inflow_wq_entrain_fix the parcel is
+        //# weighted by its volume before entrainment (Q : Delta_Q), consistent with
+        //# T and S above; the original order weighted it by Q+Delta_Q.
+        if ( inflow_wq_entrain_fix )
+            for (wqidx = 0; wqidx < Num_WQ_Vars; wqidx++)
+                WQ_VarsS[wqidx] = combine_vol(WQ_VarsS[wqidx], Inflow_Flowrate, _WQ_Vars(wqidx, Layer), Delta_Q);
+
         //# Add entrained water to inflow aliquot and take from adjacent layer
         Inflow_Flowrate += Delta_Q;
         Lake[Layer].LayerVol -= Delta_Q;
 
-        //# Update other water attributes
-        for (wqidx = 0; wqidx < Num_WQ_Vars; wqidx++)
-            WQ_VarsS[wqidx] = combine_vol(WQ_VarsS[wqidx], Inflow_Flowrate, _WQ_Vars(wqidx, Layer), Delta_Q);
+        if ( !inflow_wq_entrain_fix )
+            for (wqidx = 0; wqidx < Num_WQ_Vars; wqidx++)
+                WQ_VarsS[wqidx] = combine_vol(WQ_VarsS[wqidx], Inflow_Flowrate, _WQ_Vars(wqidx, Layer), Delta_Q);
 
         //# Calculate energy of inflowing streams.
         if (Layer == botmLayer)
