@@ -188,19 +188,21 @@ jobs:
                   AEDBENDIR=$ROOT/libaed-benthic AEDDMODIR=$ROOT/libaed-demo"
           # Build both even if one fails; compiler/linker errors are also sent
           # as annotations, which are visible without signing in to GitHub.
+          # (GitHub runs bash with -e, so test the subshell with "if !" -
+          #  otherwise the step stops before the errors are reported)
           failed=""
           for d in GLM GLM_base; do
             echo "=== building $d"
-            ( cd "$ROOT/$d"
-              VER=$(grep GLM_VERSION src/glm.h | cut -f2 -d\")
-              ( cd win && sh ../vers.sh "$VER" ) || echo "vers.sh failed - using committed win/*.rc"
-              set -o pipefail
-              make glm $COMMON 2>&1 | tee "$ROOT/build-$d.log" )
-            if [ $? -ne 0 ]; then
+            if ! ( cd "$ROOT/$d"
+                   VER=$(grep GLM_VERSION src/glm.h | cut -f2 -d\")
+                   ( cd win && sh ../vers.sh "$VER" ) || echo "vers.sh failed - using committed win/*.rc"
+                   set -o pipefail
+                   make glm $COMMON 2>&1 | tee "$ROOT/build-$d.log" ); then
               failed="$failed $d"
-              grep -E "error|Error|undefined reference|\*\*\*" "$ROOT/build-$d.log" | head -25 | \
-                while IFS= read -r line; do echo "::error title=$d build::${line:0:900}"; done
-              tail -15 "$ROOT/build-$d.log" | while IFS= read -r line; do echo "::warning title=$d tail::${line:0:900}"; done
+              { grep -E "error|Error|undefined reference|\*\*\*" "$ROOT/build-$d.log" | head -25 | \
+                  while IFS= read -r line; do echo "::error title=$d build::${line:0:900}"; done; } || true
+              { tail -15 "$ROOT/build-$d.log" | \
+                  while IFS= read -r line; do echo "::warning title=$d tail::${line:0:900}"; done; } || true
             fi
           done
           [ -z "$failed" ] || { echo "::error::build failed for:$failed"; exit 1; }
