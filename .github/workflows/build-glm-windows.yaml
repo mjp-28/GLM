@@ -115,9 +115,11 @@ jobs:
         working-directory: ${{ env.ROOT }}
         run: cp -r AED_Tools/ancillary ancillary
 
-      - name: Cache ancillary dependencies
+      # restore + explicit save (rather than actions/cache) so the 20-30 min
+      # dependency build is kept even when a later step fails
+      - name: Restore cached ancillary dependencies
         id: ancillary-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: |
             ${{ github.workspace }}/ancillary/lib
@@ -134,6 +136,17 @@ jobs:
           export CC=gcc
           export FC=gfortran
           ./build.sh --all
+
+      - name: Save ancillary dependencies to cache
+        if: steps.ancillary-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ github.workspace }}/ancillary/lib
+            ${{ github.workspace }}/ancillary/include
+            ${{ github.workspace }}/ancillary/bin
+            ${{ github.workspace }}/ancillary/share
+          key: ${{ steps.ancillary-cache.outputs.cache-primary-key }}
 
       - name: Point build env at ancillary
         run: |
@@ -173,13 +186,24 @@ jobs:
           COMMON="WITH_AED=true WITH_API=true WITH_PLOTS=true WITH_XPLOTS=true \
                   PLOTDIR=$ROOT/libplot UTILDIR=$ROOT/libutil \
                   AEDBENDIR=$ROOT/libaed-benthic AEDDMODIR=$ROOT/libaed-demo"
+          # Build both even if one fails; compiler/linker errors are also sent
+          # as annotations, which are visible without signing in to GitHub.
+          failed=""
           for d in GLM GLM_base; do
             echo "=== building $d"
             ( cd "$ROOT/$d"
               VER=$(grep GLM_VERSION src/glm.h | cut -f2 -d\")
               ( cd win && sh ../vers.sh "$VER" ) || echo "vers.sh failed - using committed win/*.rc"
-              make glm $COMMON )
+              set -o pipefail
+              make glm $COMMON 2>&1 | tee "$ROOT/build-$d.log" )
+            if [ $? -ne 0 ]; then
+              failed="$failed $d"
+              grep -E "error|Error|undefined reference|\*\*\*" "$ROOT/build-$d.log" | head -25 | \
+                while IFS= read -r line; do echo "::error title=$d build::${line:0:900}"; done
+              tail -15 "$ROOT/build-$d.log" | while IFS= read -r line; do echo "::warning title=$d tail::${line:0:900}"; done
+            fi
           done
+          [ -z "$failed" ] || { echo "::error::build failed for:$failed"; exit 1; }
 
       - name: Verify both binaries run
         run: |
