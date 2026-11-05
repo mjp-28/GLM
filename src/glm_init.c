@@ -51,6 +51,7 @@
 #include "glm_restart.h"
 #include "glm_heatexchange.h"
 #include "glm_oxygenation.h"
+#include "glm_ss_density.h"
 
 #include <aed_time.h>
 #include <namelist.h>
@@ -146,6 +147,8 @@ void init_glm(int *jstart, char *outp_dir, char *outp_fn, int *nsave)
     int             lode_method = -1;
     int             lsplit_factor = 1;
     int             bsf = 0, rs = 0, mo = 0;
+    char          **ss_density_vars = NULL;
+    AED_REAL       *ss_density_rho  = NULL;
 //  FLOGICAL        bioshade_feedback;
 //  FLOGICAL        repair_state;
 //  FLOGICAL        mobility_off;
@@ -160,6 +163,10 @@ void init_glm(int *jstart, char *outp_dir, char *outp_fn, int *nsave)
           { "repair_state",      TYPE_BOOL,             &rs                   },
           { "mobility_off",      TYPE_BOOL,             &mo                   },
           { "link_ext_par",      TYPE_BOOL,             &link_ext_par         },
+          { "ss_density",        TYPE_BOOL,             &ss_density           },
+          { "ss_density_vars",   TYPE_STR|MASK_LIST,    &ss_density_vars      },
+          { "ss_density_rho",    TYPE_DOUBLE|MASK_LIST, &ss_density_rho       },
+          { "ss_density_diag",   TYPE_BOOL,             &ss_density_diag      },
           { NULL,                TYPE_END,              NULL                  }
     };
     /*-- %%END NAMELIST ------------------------------------------------------*/
@@ -1560,6 +1567,11 @@ for (i = 0; i < n_zones; i++) {
         wq_set_glm_data();
     }
     NumDif += Num_WQ_Vars;
+
+    //# suspended solids in density - needs the WQ variable indices from above
+    ss_density_init(wq_nml_file,
+                    ss_density_vars, get_nml_listlen(namlst, "wq_setup", "ss_density_vars"),
+                    ss_density_rho,  get_nml_listlen(namlst, "wq_setup", "ss_density_rho"));
 
     fprintf(stderr, "     DBG calling initialise_lake\n");
     initialise_lake(namlst);
