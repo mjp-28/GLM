@@ -50,6 +50,9 @@
     <ClCompile Include="..\src\glm_lnum.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\glm_ss_density.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\src\glm_main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -131,6 +134,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\glm_lnum.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\glm_ss_density.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\glm_mixer.h">

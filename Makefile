@@ -376,6 +376,7 @@ OBJS=${objdir}/glm_globals.o \
      ${objdir}/glm_ncdf.o \
      ${objdir}/glm_restart.o \
      ${objdir}/glm_lnum.o \
+     ${objdir}/glm_ss_density.o \
      ${objdir}/glm_init.o \
      ${objdir}/glm_flow.o \
      ${objdir}/glm_mixer.o \

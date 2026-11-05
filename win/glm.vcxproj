@@ -117,6 +117,7 @@
     <ClCompile Include="..\src\glm_input.c" />
     <ClCompile Include="..\src\glm_layers.c" />
     <ClCompile Include="..\src\glm_lnum.c" />
+    <ClCompile Include="..\src\glm_ss_density.c" />
     <ClCompile Include="..\src\glm_main.c" />
     <ClCompile Include="..\src\glm_mixer.c" />
     <ClCompile Include="..\src\glm_mixu.c" />
@@ -145,6 +146,7 @@
     <ClInclude Include="..\src\glm_input.h" />
     <ClInclude Include="..\src\glm_layers.h" />
     <ClInclude Include="..\src\glm_lnum.h" />
+    <ClInclude Include="..\src\glm_ss_density.h" />
     <ClInclude Include="..\src\glm_mixer.h" />
     <ClInclude Include="..\src\glm_mixu.h" />
     <ClInclude Include="..\src\glm_mobl.h" />
