@@ -61,6 +61,8 @@
 #include "glm_wqual.h"
 #include "glm_ptm.h"
 #include "glm_plot.h"
+#include "glm_util.h"
+#include "glm_ss_density.h"
 
 #ifdef PLOTS
 #include "libplot.h"
@@ -286,9 +288,16 @@ void write_output(int jday, int iclock, int nsave, int stepnum)
     int i, n, lvl[MaxPointCSV];
     extern CLOGICAL csv_point_depth_avg[];
     char ts[20];
+    AED_REAL *ssrho = NULL;   //# per-layer SS density excess for 'ssrho' columns
 
     if ( csv_point_nlevs > 0 ) {
         for (i = 0; i < MaxPointCSV; i++) lvl[i] = -1;
+
+        if ( ss_density ) {
+            ssrho = calloc(MaxLayers, sizeof(AED_REAL));
+            for (n = 0; n < NumLayers; n++)
+                ssrho[n] = ss_layer_excess(n, calculate_density(Lake[n].Temp, Lake[n].Salinity));
+        }
 
         //# Output at end of time step so add noSecs to time string
         write_time_string(ts, jday, iclock + noSecs);
@@ -323,12 +332,15 @@ void write_output(int jday, int iclock, int nsave, int stepnum)
                 write_csv_point_avg(i, "temp", NULL, NULL, FALSE);
                 write_csv_point_avg(i, "salt", NULL, NULL, FALSE);
                 write_csv_point_avg(i, "dens", NULL, NULL, FALSE);
+                if ( ssrho != NULL ) write_csv_point_avg(i, "ssrho", ssrho, NULL, FALSE);
             } else if ( lvl[i] >= 0 ) {
                 write_csv_point(i, "temp", Lake[lvl[i]].Temp,     NULL, FALSE);
                 write_csv_point(i, "salt", Lake[lvl[i]].Salinity, NULL, FALSE);
                 write_csv_point(i, "dens", Lake[lvl[i]].Density,  NULL, FALSE);
+                if ( ssrho != NULL ) write_csv_point(i, "ssrho", ssrho[lvl[i]], NULL, FALSE);
             }
         }
+        if ( ssrho != NULL ) free(ssrho);
     }
 
 #ifdef PLOTS

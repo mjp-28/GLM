@@ -958,6 +958,10 @@ AED_REAL do_inflows()
             for (wqidx = 0; wqidx < Num_WQ_Vars; wqidx++)
                 Inflows[iRiver].WQDown[Inflows[iRiver].iCnt][wqidx] = Inflows[iRiver].WQInf[wqidx];
 
+            ss_density_diag_inflow(iRiver, "inflow", Inflows[iRiver].FlowRate * Inflows[iRiver].Factor,
+                                   Inflows[iRiver].TemInf, Inflows[iRiver].SalInf,
+                                   Inflows[iRiver].WQInf, surfLayer);
+
             Inflows[iRiver].iCnt++;
         }
     }
@@ -1027,6 +1031,11 @@ AED_REAL do_inflows()
                 Lake[Layer_subm].Density = layer_density(Layer_subm);
                 Lake[Layer_subm].LayerVol = Lake[Layer_subm].LayerVol+(Inflows[iRiver].FlowRate*Inflows[iRiver].Factor);
 
+                if ( Inflows[iRiver].FlowRate*Inflows[iRiver].Factor > zero )
+                    ss_density_diag_inflow(iRiver, "subm", Inflows[iRiver].FlowRate*Inflows[iRiver].Factor,
+                                           Inflows[iRiver].TemInf, Inflows[iRiver].SalInf,
+                                           Inflows[iRiver].WQInf, Layer_subm);
+
                 if ( ptm_sw ) {
                     // insert particles ---
                     upper_height = Lake[Layer_subm].Height;
@@ -1050,6 +1059,10 @@ AED_REAL do_inflows()
                     insert(Inflows[iRiver].QIns[j], Inflows[iRiver].DIIns[j], Inflows[iRiver].Phi,
                               Inflows[iRiver].TIns[j], Inflows[iRiver].SIns[j],
                                          WQ_VarsTmp[iRiver][j], SecsPerDay, &Inflow_width, &ll);
+
+                    ss_density_diag_inflow(iRiver, "insert", Inflows[iRiver].QIns[j],
+                                           Inflows[iRiver].TIns[j], Inflows[iRiver].SIns[j],
+                                           Inflows[iRiver].WQIns[j], ll);
                                          // QIns is flow; D depth, WQ vars defined above; need to pass particle
                                          // fraction to insert routine
 

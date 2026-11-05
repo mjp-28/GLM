@@ -1571,7 +1571,8 @@ for (i = 0; i < n_zones; i++) {
     //# suspended solids in density - needs the WQ variable indices from above
     ss_density_init(wq_nml_file,
                     ss_density_vars, get_nml_listlen(namlst, "wq_setup", "ss_density_vars"),
-                    ss_density_rho,  get_nml_listlen(namlst, "wq_setup", "ss_density_rho"));
+                    ss_density_rho,  get_nml_listlen(namlst, "wq_setup", "ss_density_rho"),
+                    outp_dir);
 
     fprintf(stderr, "     DBG calling initialise_lake\n");
     initialise_lake(namlst);

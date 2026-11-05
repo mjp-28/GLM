@@ -461,6 +461,7 @@ void do_model(int jstart, int nsave)
 
         if (!is_partial_end_with_restart) {
         //# Insert inflows for all streams
+        ss_density_set_day(jday);   //# date for the inflow diagnostics
         SurfData.dailyInflow = do_inflows(); //# Do inflow for all streams
 
         //# Extract withdrawal from all offtakes
@@ -706,6 +707,7 @@ void do_model_non_avg(int jstart, int nsave)
 
         if (!is_partial_end_with_restart) {
          //# Insert inflows for all streams
+        ss_density_set_day(jday);   //# date for the inflow diagnostics
         SurfData.dailyInflow = do_inflows();
 
         if (Lake[surfLayer].Vol1 > zero) {
@@ -869,6 +871,7 @@ void do_model_coupled(int step_start, int step_end,
         //# End of forcing-mixing-diffusion loop
 
          //# Insert inflows for all streams
+        ss_density_set_day(jday);   //# date for the inflow diagnostics
         SurfData.dailyInflow = do_inflows();
 
         //# Read today's oxygenation values (CSV-driven devices and recirc stream)

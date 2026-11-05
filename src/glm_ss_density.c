@@ -48,6 +48,7 @@
 #include "glm_util.h"
 #include "glm_wqual.h"
 #include "glm_ss_density.h"
+#include "aed_time.h"
 
 #define NCS_GROUP    "aed_noncohesive"
 #define NCS_MAX      100      //# AED dimensions its NCS parameter vectors at 100
@@ -60,6 +61,10 @@ CLOGICAL ss_density_diag = FALSE;
 static int      n_ss = 0;                          //# number of active SS vars
 static int      ss_idx[MAX_SS_DENS_VARS];          //# their WQ indices
 static AED_REAL ss_rho[MAX_SS_DENS_VARS];          //# their particle density
+
+static char     diag_path[512] = "";               //# inflow diagnostics file
+static FILE    *diag_f    = NULL;
+static int      diag_jday = 0;
 /*----------------------------------------------------------------------------*/
 
 
@@ -172,9 +177,10 @@ static int read_aed_ncs(const char *fname, int *num_ss, int *settling,
  *   wq_nml_file  : AED namelist (for rho_ss etc)                             *
  *   vars, nvars  : ss_density_vars from &wq_setup (NULL/0 = all NCS groups)  *
  *   rho_override : ss_density_rho from &wq_setup (NULL/0 = use rho_ss)       *
+ *   out_dir      : output directory for the ss_density_diag file             *
  ******************************************************************************/
 void ss_density_init(const char *wq_nml_file, char **vars, int nvars,
-                                               AED_REAL *rho_override, int nrho)
+                     AED_REAL *rho_override, int nrho, const char *out_dir)
 {
     int num_ss, settling, found, i;
     AED_REAL rho_ss[NCS_MAX], d_ss[NCS_MAX], w_ss[NCS_MAX];
@@ -272,6 +278,12 @@ void ss_density_init(const char *wq_nml_file, char **vars, int nvars,
         fprintf(stderr, "     WARNING: no usable ss_density variables; SS density switched OFF\n");
         ss_density = FALSE;
     }
+
+    if ( ss_density && ss_density_diag ) {
+        snprintf(diag_path, sizeof(diag_path), "%s/inflow_ss_density.csv",
+                                            (out_dir != NULL && *out_dir) ? out_dir : ".");
+        fprintf(stderr, "     SS density: inflow diagnostics to %s\n", diag_path);
+    }
 }
 
 
@@ -327,4 +339,57 @@ void refresh_densities()
     if ( !ss_density ) return;
     for (k = botmLayer; k <= surfLayer; k++)
         Lake[k].Density = layer_density(k);
+}
+
+
+/******************************************************************************
+ * Inflow diagnostics                                                         *
+ ******************************************************************************/
+void ss_density_set_day(int jday) { diag_jday = jday; }
+
+/******************************************************************************
+ * Write one row of output/inflow_ss_density.csv:                             *
+ *   stage  "inflow" - the day's inflow water as it enters at the surface     *
+ *          "subm"   - a submerged inflow inserted at its fixed height        *
+ *          "insert" - a parcel inserted at its level of neutral buoyancy     *
+ *                     (or the bottom), after plunging and entraining         *
+ *   volume is the parcel volume [m3]; comparing "insert" with "inflow"       *
+ *   volumes shows how much lake water was entrained on the way down.        *
+ *   height_m is the middle of the receiving layer (m above the bottom).      *
+ ******************************************************************************/
+void ss_density_diag_inflow(int iRiver, const char *stage, AED_REAL volume,
+                            AED_REAL temp, AED_REAL salt, const AED_REAL *wq,
+                            int layer)
+{
+    AED_REAL rho_ts, drho, ss = zero, height;
+    char ts[24];
+    int i;
+
+    if ( !ss_density || !ss_density_diag || diag_path[0] == 0 ) return;
+
+    if ( diag_f == NULL ) {
+        if ( (diag_f = fopen(diag_path, "w")) == NULL ) {
+            fprintf(stderr, "     WARNING: cannot open %s; inflow diagnostics off\n", diag_path);
+            diag_path[0] = 0;
+            return;
+        }
+        fprintf(diag_f, "time,inflow,stage,volume_m3,temp,salt,ss_gm3,"
+                        "rho_ts,rho,drho_ss,height_m,layer\n");
+    }
+
+    rho_ts = calculate_density(temp, salt);
+    drho   = ss_density_excess(wq, rho_ts);
+    for (i = 0; i < n_ss; i++) ss += wq[ss_idx[i]];
+
+    if ( layer < botmLayer ) layer = botmLayer;
+    height = (layer > botmLayer) ? (Lake[layer].Height + Lake[layer-1].Height) / 2.0
+                                 : Lake[layer].Height / 2.0;
+
+    write_time_string(ts, diag_jday, 0);
+    ts[10] = 0;   //# date only - inflows are applied once per day
+
+    fprintf(diag_f, "%s,%d,%s,%.6g,%.4f,%.4f,%.4f,%.5f,%.5f,%.5f,%.3f,%d\n",
+                    ts, iRiver+1, stage, volume, temp, salt, ss,
+                    rho_ts, rho_ts + drho, drho, height, layer);
+    fflush(diag_f);
 }

@@ -39,6 +39,8 @@
 #include "glm_types.h"
 #include "glm_globals.h"
 #include "glm_ncdf.h"
+#include "glm_util.h"
+#include "glm_ss_density.h"
 
 int ncid=-1;
 
@@ -68,6 +70,7 @@ static int Qsw_id, Qe_id, Qh_id, Qlw_id;
 static int LkNum_id, maxdtz_id, CD_id, CHE_id, zL_id;
 static int sedlayer_dim, sed_temp_id, sed_hf_id, sed_zt_id, sed_ld_id;
 static int zarea_id;
+static int ssrho_id = -1;   //# SS density excess (only when ss_density is on)
 
 #ifdef _WIN32
     char *strndup(const char *s, size_t len);
@@ -205,6 +208,8 @@ int init_glm_ncdf(const char *fn, const char *title, AED_REAL lat,
     check_nc_error(nc_def_var(ncid, "uorb",    NC_REALTYPE, 4, dims, &uorb_id));
     check_nc_error(nc_def_var(ncid, "taub",    NC_REALTYPE, 4, dims, &Taub_id));
     check_nc_error(nc_def_var(ncid, "epsilon", NC_REALTYPE, 4, dims, &epsilon_id));
+    if ( ss_density )
+        check_nc_error(nc_def_var(ncid, "ss_rho_excess", NC_REALTYPE, 4, dims, &ssrho_id));
 
     dims[3] = x_dim;
     dims[2] = y_dim;
@@ -291,6 +296,8 @@ int init_glm_ncdf(const char *fn, const char *title, AED_REAL lat,
 
     set_nc_attributes(ncid, Taub_id,    "N/m2",    "layer stress"     PARAM_FILLVALUE);
     set_nc_attributes(ncid, epsilon_id, "m2/s",    "diffusivity"      PARAM_FILLVALUE);
+    if ( ssrho_id >= 0 )
+        set_nc_attributes(ncid, ssrho_id, "kg/m3", "density excess from suspended solids" PARAM_FILLVALUE);
     set_nc_attributes(ncid, zarea_id,   "m2",      "sediment zone area" PARAM_FILLVALUE);
 
     //# global attributes
@@ -474,6 +481,15 @@ void write_glm_ncdf(int ncid, int wlev, int nlev, int stepnum, AED_REAL timestep
     free(temps);  free(dens); free(qsw);
     free(extc_coef); free(u_mean); free(u_orb);
     free(taub); free(epsilon);
+
+    if ( ssrho_id >= 0 ) {
+        AED_REAL *ssrho = malloc(nlev*sizeof(AED_REAL));
+        for (i = 0; i < nlev; i++)
+            ssrho[i] = (i < wlev) ? ss_layer_excess(i, calculate_density(Lake[i].Temp, Lake[i].Salinity))
+                                  : NC_FILLER;
+        check_nc_error(nc_put_vara(ncid, ssrho_id, start, edges, ssrho));
+        free(ssrho);
+    }
 
     /* sediment temperature model time series (sed_heat_model == 2) */
     if ( sed_heat_model == 2 && n_zones > 0 && theZones != NULL ) {

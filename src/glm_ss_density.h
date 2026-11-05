@@ -31,7 +31,7 @@ extern CLOGICAL ss_density;       //# include SS in inflow and layer density (&w
 extern CLOGICAL ss_density_diag;  //# write per-parcel inflow diagnostics (&wq_setup)
 
 void ss_density_init(const char *wq_nml_file, char **vars, int nvars,
-                                               AED_REAL *rho_override, int nrho);
+                     AED_REAL *rho_override, int nrho, const char *out_dir);
 
 //# Density excess [kg/m3] of a set of WQ values (e.g. an inflow parcel) in
 //# water of density rho_w. Returns zero when ss_density is off.
@@ -45,5 +45,12 @@ AED_REAL layer_density(int k);
 
 //# Recalculate the density of every lake layer
 void refresh_densities(void);
+
+//# Inflow diagnostics (ss_density_diag): the model day for the next rows,
+//# and one row per inflow parcel event ("inflow", "subm" or "insert")
+void ss_density_set_day(int jday);
+void ss_density_diag_inflow(int iRiver, const char *stage, AED_REAL volume,
+                            AED_REAL temp, AED_REAL salt, const AED_REAL *wq,
+                            int layer);
 
 #endif
