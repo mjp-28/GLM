@@ -187,14 +187,17 @@ void ss_density_init(const char *wq_nml_file, char **vars, int nvars,
     char name[64];
 
     n_ss = 0;
-    if ( !ss_density ) return;
+    if ( !ss_density && !ss_density_diag ) return;
 
-    fprintf(stderr, "     SS density: suspended solids included in inflow and layer density\n");
+    if ( ss_density )
+        fprintf(stderr, "     SS density: suspended solids included in inflow and layer density\n");
+    else
+        fprintf(stderr, "     SS density: OFF (density from T and S only); inflow diagnostics only\n");
 
     if ( !wq_calc || Num_WQ_Vars <= 0 ) {
         fprintf(stderr, "     WARNING: ss_density needs the WQ model (AED) to be running;"
                         " SS density switched OFF\n");
-        ss_density = FALSE;
+        ss_density = FALSE; ss_density_diag = FALSE;
         return;
     }
 
@@ -276,10 +279,10 @@ void ss_density_init(const char *wq_nml_file, char **vars, int nvars,
 
     if ( n_ss == 0 ) {
         fprintf(stderr, "     WARNING: no usable ss_density variables; SS density switched OFF\n");
-        ss_density = FALSE;
+        ss_density = FALSE; ss_density_diag = FALSE;
     }
 
-    if ( ss_density && ss_density_diag ) {
+    if ( ss_density_diag ) {
         snprintf(diag_path, sizeof(diag_path), "%s/inflow_ss_density.csv",
                                             (out_dir != NULL && *out_dir) ? out_dir : ".");
         fprintf(stderr, "     SS density: inflow diagnostics to %s\n", diag_path);
