@@ -290,16 +290,22 @@ void ss_density_init(const char *wq_nml_file, char **vars, int nvars,
 /******************************************************************************
  * Density excess [kg/m3] of the SS in a WQ vector (e.g. an inflow parcel)    *
  ******************************************************************************/
-AED_REAL ss_density_excess(const AED_REAL *wq, AED_REAL rho_w)
+static AED_REAL ss_excess_any(const AED_REAL *wq, AED_REAL rho_w)
 {
     AED_REAL drho = zero;
     int i;
 
-    if ( !ss_density || wq == NULL ) return zero;
+    if ( wq == NULL ) return zero;
     for (i = 0; i < n_ss; i++)
         if ( wq[ss_idx[i]] > zero )
             drho += wq[ss_idx[i]] * 1e-3 * (1.0 - rho_w / ss_rho[i]);
     return drho;
+}
+
+AED_REAL ss_density_excess(const AED_REAL *wq, AED_REAL rho_w)
+{
+    if ( !ss_density ) return zero;
+    return ss_excess_any(wq, rho_w);
 }
 
 
@@ -365,7 +371,7 @@ void ss_density_diag_inflow(int iRiver, const char *stage, AED_REAL volume,
     char ts[24];
     int i;
 
-    if ( !ss_density || !ss_density_diag || diag_path[0] == 0 ) return;
+    if ( !ss_density_diag || diag_path[0] == 0 || n_ss == 0 ) return;
 
     if ( diag_f == NULL ) {
         if ( (diag_f = fopen(diag_path, "w")) == NULL ) {
@@ -377,8 +383,10 @@ void ss_density_diag_inflow(int iRiver, const char *stage, AED_REAL volume,
                         "rho_ts,rho,drho_ss,height_m,layer\n");
     }
 
+    //# drho_ss is the excess the SS carries (or would carry, when ss_density
+    //# is off); rho is the density GLM actually used for this parcel.
     rho_ts = calculate_density(temp, salt);
-    drho   = ss_density_excess(wq, rho_ts);
+    drho   = ss_excess_any(wq, rho_ts);
     for (i = 0; i < n_ss; i++) ss += wq[ss_idx[i]];
 
     if ( layer < botmLayer ) layer = botmLayer;
@@ -390,6 +398,6 @@ void ss_density_diag_inflow(int iRiver, const char *stage, AED_REAL volume,
 
     fprintf(diag_f, "%s,%d,%s,%.6g,%.4f,%.4f,%.4f,%.5f,%.5f,%.5f,%.3f,%d\n",
                     ts, iRiver+1, stage, volume, temp, salt, ss,
-                    rho_ts, rho_ts + drho, drho, height, layer);
+                    rho_ts, ss_density ? rho_ts + drho : rho_ts, drho, height, layer);
     fflush(diag_f);
 }
