@@ -330,7 +330,7 @@ int init_glm_ncdf(const char *fn, const char *title, AED_REAL lat,
         check_nc_error(nc_def_var(ncid, "sed_layer_depth", NC_REALTYPE, 1, dims, &sed_ld_id));
 
         set_nc_attributes(ncid, sed_temp_id, "celsius", "sediment temperature"         PARAM_FILLVALUE);
-        set_nc_attributes(ncid, sed_hf_id,   "W/m2",    "sediment-water heat flux"      PARAM_FILLVALUE);
+        set_nc_attributes(ncid, sed_hf_id,   "W/m2",    "sediment-water heat flux, positive into the sediment" PARAM_FILLVALUE);
         set_nc_attributes(ncid, sed_zt_id,   "celsius", "zone water temp (sed top BC)"  PARAM_FILLVALUE);
         set_nc_attributes(ncid, sed_ld_id,   "meters",  "sediment node depth"           PARAM_FILLVALUE);
     }

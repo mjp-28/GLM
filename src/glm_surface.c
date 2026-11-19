@@ -1144,20 +1144,27 @@ void do_surface_thermodynamics(int jday, int iclock, int LWModel,
 //            memset(sed_vwc, 0, sizeof(AED_REAL)*sed_layers);
 //            memset(sed_temps, 0, sizeof(AED_REAL)*sed_layers);
 
-              //# Volume-weighted zone-average water temperature: the soil model's
-              //# surface boundary condition.  Computed here rather than in the WQ
-              //# coupler because only the legacy 'aed' coupler's copy_to_zone fills
-              //# ztemp; the 'api' coupler and wq_calc=.false. runs would leave it 0.
-              //# Zones with no wet layers keep their previous ztemp.
+              //# Zone-average water temperature weighted by BED-CONTACT AREA (the
+              //# water actually touching the sediment; flank area for interior
+              //# layers, full LayerArea for the bottom layer): the soil model's
+              //# surface boundary condition. (Was volume-weighted, which is
+              //# dominated by the upper part of a zone; changed 2026-11-20 to
+              //# follow AquaticEcoDynamics/GLM branch ptm_updates.) Computed here
+              //# rather than in the WQ coupler because only the legacy 'aed'
+              //# coupler's copy_to_zone fills ztemp; the 'api' coupler and
+              //# wq_calc=.false. runs would leave it 0. Zones with no wet bed keep
+              //# their previous ztemp.
               for (z = 0; z < n_zones; z++) {
-                  AED_REAL tsum = 0., tvol = 0.;
+                  AED_REAL tsum = 0., asum = 0., a;
                   for (i = botmLayer; i <= surfLayer; i++) {
                       if (layer_zone[i] == z) {
-                          tsum += Lake[i].Temp * Lake[i].LayerVol;
-                          tvol += Lake[i].LayerVol;
+                          a = (i == botmLayer) ? Lake[i].LayerArea
+                                               : (Lake[i].LayerArea - Lake[i-1].LayerArea);
+                          tsum += a * Lake[i].Temp;
+                          asum += a;
                       }
                   }
-                  if (tvol > 0.) theZones[z].ztemp = tsum / tvol;
+                  if (asum > 0.) theZones[z].ztemp = tsum / asum;
               }
 
               for (z = 0; z < n_zones; z++) {
@@ -1173,21 +1180,28 @@ void do_surface_thermodynamics(int jday, int iclock, int LWModel,
 #ifdef AED
                   // ZSoilTemp advances this zone's sediment temperature profile
                   // and stores the sediment-water interface heat flux (W/m2) in
-                  // theZones[z].heatflux.
+                  // theZones[z].heatflux, POSITIVE INTO THE SEDIMENT
+                  // (libaed aed_util SoilTempFV: heatflux = k (Twater - Tsed) / dz).
                   if ( p_wq_ZSoilTemp != NULL ) ZSoilTemp(&theZones[z]);
 #endif
-                  // flux heat from the soil into the water, if the layer is over z
-                  for (i = botmLayer+1; i <= surfLayer; i++) {
+                  // Move that heat OUT of the water over this zone's bed. FIX
+                  // 2026-11-20 (following AquaticEcoDynamics/GLM ptm_updates):
+                  //  (1) sign: the flux is positive into the sediment, so the water
+                  //      loses dE = -heatflux * bed * dt (was +heatflux, which pushed
+                  //      the water away from the sediment temperature);
+                  //  (2) the bottom layer is included, with its full LayerArea as bed
+                  //      (the loop started at botmLayer+1, so the bottom layer got no
+                  //      sediment heat).
+                  for (i = botmLayer; i <= surfLayer; i++) {
                     if (layer_zone[i] == z){
-                      Lake[i].Temp += theZones[z].heatflux
-                              * ((Lake[i].LayerArea - Lake[i-1].LayerArea) * noSecs)
-                              / (SPHEAT * Lake[i].Density * Lake[i].LayerVol);
+                      AED_REAL bed = (i == botmLayer) ? Lake[i].LayerArea
+                                                      : (Lake[i].LayerArea - Lake[i-1].LayerArea);
+                      AED_REAL dE = -theZones[z].heatflux * bed * noSecs;
+                      Lake[i].Temp += dE / (SPHEAT * Lake[i].Density * Lake[i].LayerVol);
                       //# accumulate the exact Joules delivered to the water from
-                      //# this zone's bed (= flux * bed-contact area * dt), summed
-                      //# over layers and sub-steps -> written to restart.nc.
-                      if ( sed_zone_energy != NULL )
-                        sed_zone_energy[z] += theZones[z].heatflux
-                              * (Lake[i].LayerArea - Lake[i-1].LayerArea) * noSecs;
+                      //# this zone's bed, summed over layers and sub-steps
+                      //# -> written to restart.nc.
+                      if ( sed_zone_energy != NULL ) sed_zone_energy[z] += dE;
                     }
                   }
                }

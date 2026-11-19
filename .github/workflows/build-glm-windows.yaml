@@ -10,13 +10,13 @@ name: Build GLM (Windows)
 # standard AED edition only). Library versions are pinned below; change a pin
 # deliberately (and note why in the commit message).
 #
-# Runs on every push to ss-density that touches the source, the Makefile or
+# Runs on every push to ss-density (or ss-density-sedheat) that touches the source, the Makefile or
 # this file. (A manual "Run workflow" button only appears if this file is also
 # on the repository's default branch.)
 
 on:
   push:
-    branches: [ ss-density ]
+    branches: [ ss-density, ss-density-sedheat ]
     paths:
       - 'src/**'
       - 'include/**'
