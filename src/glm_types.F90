@@ -259,6 +259,8 @@ MODULE glm_types
 
    TYPE(FLOGICAL),BIND(C, name="do_particle_bgc")    :: do_particle_bgc = .FALSE.
    TYPE(FLOGICAL),BIND(C, name="link_ext_par")       :: link_ext_par = .FALSE.
+   !# zone_taub: sediment zones use their own zone-mean layer stress (see glm_aed.F90)
+   TYPE(FLOGICAL),BIND(C, name="zone_taub")          :: zone_taub = .FALSE.
 
    !# Dynamic sediment soil-temperature model (sed_heat_model = 2): the per-step
    !# timestep (set from noSecs by glm_surface.c) and the soil thermal properties

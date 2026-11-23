@@ -163,6 +163,8 @@ void init_glm(int *jstart, char *outp_dir, char *outp_fn, int *nsave)
           { "repair_state",      TYPE_BOOL,             &rs                   },
           { "mobility_off",      TYPE_BOOL,             &mo                   },
           { "link_ext_par",      TYPE_BOOL,             &link_ext_par         },
+          { "zone_taub",         TYPE_BOOL,             &zone_taub            },
+          { "bottom_settle",     TYPE_BOOL,             &bottom_settle        },
           { "ss_density",        TYPE_BOOL,             &ss_density           },
           { "ss_density_vars",   TYPE_STR|MASK_LIST,    &ss_density_vars      },
           { "ss_density_rho",    TYPE_DOUBLE|MASK_LIST, &ss_density_rho       },

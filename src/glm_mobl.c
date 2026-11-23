@@ -44,6 +44,8 @@
 #include "glm_types.h"
 #include "glm_mobl.h"
 
+extern CLOGICAL bottom_settle;   //# &wq_setup, defined in glm_globals.c
+
 
 
 /******************************************************************************/
@@ -231,7 +233,16 @@ AED_REAL Sinking(AED_REAL *Y, AED_REAL *mcc,
     int i;
     AED_REAL mov = 0., moved = 0.;
 
-    for (i = start; i > end; i--) {
+    // bottom_settle (&wq_setup, default off): when this sinking run reaches the
+    // lake bottom (end == 0), also process the bottom layer (index 0), so it
+    // receives what settles out of the layer above and loses its own settling
+    // across the bed (returned in "moved" and discarded by the caller, like the
+    // flank losses). Off: the loop stops at layer 1 as before, so layer 0 never
+    // loses particles and the mass leaving layer 1 vanishes from the water.
+    // The mixed rising/sinking case (end > 0) is unchanged.
+    int stop = ( bottom_settle && end == 0 ) ? -1 : end;
+
+    for (i = start; i > stop; i--) {
         // speed times time (=h) time area * concen = mass to move
         mov = (fabs(ww[i]) * dt) * A[i] * mcc[i];
         //  if removing that much would bring it below min conc

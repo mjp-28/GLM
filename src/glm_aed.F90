@@ -1162,7 +1162,18 @@ CONTAINS
             CASE ( 'u_star' )      ; column_sed(av)%cell_sheet => u_star_glm
             CASE ( 'Q_net' )       ; column_sed(av)%cell_sheet => Q_net_glm
             CASE ( 'par_sf' )      ; column_sed(av)%cell_sheet => I_0
-            CASE ( 'taub' )        ; column_sed(av)%cell_sheet => bottom_stress
+            CASE ( 'taub' )
+               !# zone_taub (wq_setup, default .false.): give each sediment zone the
+               !# mean LayerStress of the layers inside that zone (computed in
+               !# copy_to_zone, glm_zones.F90) instead of the deepest layer's stress.
+               !# Without it every zone, including the shallow margins, sees the
+               !# stress at the lake bottom (~0 in a deep lake), so AED resuspension
+               !# can never act when benthic_mode > 1.
+               IF ( zone_taub ) THEN
+                  column_sed(av)%cell_sheet => theZones(zon)%zlayer_stress
+               ELSE
+                  column_sed(av)%cell_sheet => bottom_stress
+               ENDIF
             CASE ( 'col_depth' )   ; column_sed(av)%cell_sheet => col_depth
             CASE ( 'col_num' )     ; column_sed(av)%cell_sheet => col_num
             CASE ( 'col_area' )    ; column_sed(av)%cell_sheet => area(top)

@@ -433,6 +433,8 @@ extern FLOGICAL link_bottom_drag;
 extern FLOGICAL ice;
 extern FLOGICAL do_particle_bgc;
 extern FLOGICAL link_ext_par;
+extern FLOGICAL zone_taub;
+extern CLOGICAL bottom_settle;
 
 extern CINTEGER split_factor;
 extern CINTEGER ode_method;

@@ -55,6 +55,9 @@ int Tot_WQ_Vars = 0;   //# nVars+nBen
 int Num_WQD_Vars = 0;  //# number of diagnostic water quality variables
 int Num_WQDS_Vars = 0; //# number of diagnostic benthic water quality variables
 
+CLOGICAL bottom_settle = FALSE; //# &wq_setup: particles also settle out of the
+                                //  bottom layer (glm_mobl.c Sinking); default off
+
 CLOGICAL atm_stab = 0; //# Non-neutral atmospheric stability correction of the
                        //  surface heat fluxes: 0 = off (neutral bulk fluxes);
                        //  1 = Monin-Obukhov iteration + free-convection floor;
