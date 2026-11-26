@@ -231,6 +231,8 @@ extern AED_REAL WaveNumSquared;
 extern AED_REAL XMoment1;
 extern AED_REAL einff;          //# change in potential energy (see do_inflows)
 extern CLOGICAL inflow_wq_entrain_fix; //# dilute inflow WQ by the pre-entrainment parcel volume
+extern int      inflow_substeps;      //# inflow insertions per day (1 = daily)
+extern AED_REAL inflow_dt;            //# seconds represented by the current do_inflows call
 extern AED_REAL coef_mix_KH;    //# Kelvin-Helmholtz billows
 extern AED_REAL coef_mix_conv;  //# convective overturn
 extern AED_REAL coef_mix_shear; //# shear efficiency

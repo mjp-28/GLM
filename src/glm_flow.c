@@ -723,7 +723,7 @@ static int insert_inflow(int k, //# Inflow parcel counter
         Inflow_gprime = g*(Inflow_Density-Lake[Layer].Density)/Lake[Layer].Density;
 
         //# Initial height of the inflow as it plunges (Eq. x in GLM manual)
-        Inflow_height_prev = pow((2.0*Ri*pow((Inflow_Flowrate/SecsPerDay*cos(Alpha)/sin(Alpha)), 2) / Inflow_gprime), 0.2);
+        Inflow_height_prev = pow((2.0*Ri*pow((Inflow_Flowrate/inflow_dt*cos(Alpha)/sin(Alpha)), 2) / Inflow_gprime), 0.2);
 
         //# Distance travelled by inflow aliquot (Eq. x in GLM manual)
         if (Layer == botmLayer) Inflow_dx = Downflow_Depth / sin(Phi);
@@ -787,9 +787,9 @@ static int insert_inflow(int k, //# Inflow parcel counter
 
         //# Calculate energy of inflowing streams.
         if (Layer == botmLayer)
-            Inflow_Energy += (Inflow_Density - Lake[Layer].Density) * Downflow_Depth * g * Inflow_Flowrate / SecsPerDay;
+            Inflow_Energy += (Inflow_Density - Lake[Layer].Density) * Downflow_Depth * g * Inflow_Flowrate / inflow_dt;
         else
-            Inflow_Energy += (Inflow_Density - Lake[Layer].Density) * (Downflow_Depth - Lake[Layer-1].Height) * g * Inflow_Flowrate / SecsPerDay;
+            Inflow_Energy += (Inflow_Density - Lake[Layer].Density) * (Downflow_Depth - Lake[Layer-1].Height) * g * Inflow_Flowrate / inflow_dt;
 
         //# Update the downflowing parcel with the new attributes
         Inflows[iRiver].QDown[k] = Inflow_Flowrate;
@@ -919,7 +919,7 @@ AED_REAL do_inflows()
 
             if (Inflow_gprime_t0 > zero) //#inflow density > surface
                 //# Initial plunge point (Eq. x in GLM manual)
-                Inflow_Height_t0 = pow(Inflows[iRiver].FlowRate * Inflows[iRiver].Factor / SecsPerDay, 0.4)/
+                Inflow_Height_t0 = pow(Inflows[iRiver].FlowRate * Inflows[iRiver].Factor / inflow_dt, 0.4)/
                                    pow(Inflow_gprime_t0, 0.2);
             else { //#inflow density < surface inflow thickness so plunge to depth of surface layer
                 if (surfLayer > 0)
@@ -934,7 +934,7 @@ AED_REAL do_inflows()
             //# Wave number squared (Eq. y in GLM manual)
             WaveNumSquared = cwnsq2/sqr(Inflow_Height_t0);
             //# Velocity of the plunging inflow (Eq. y in GLM manual)
-            vel = 0.1 * Inflows[iRiver].FlowRate*Inflows[iRiver].Factor / SecsPerDay /
+            vel = 0.1 * Inflows[iRiver].FlowRate*Inflows[iRiver].Factor / inflow_dt /
                                           (sqr(Inflow_Height_t0)*sin(Alpha)/cos(Alpha));
         }
      }
@@ -949,6 +949,32 @@ AED_REAL do_inflows()
      **************************************************************************/
 
     for (iRiver = 0; iRiver < NumInf; iRiver++) {
+        if (Inflows[iRiver].FlowRate * Inflows[iRiver].Factor > zero && !Inflows[iRiver].SubmFlag &&
+                                                     Inflows[iRiver].iCnt >= MaxPar) {
+            //# The parcel stack is full (MaxPar parcels still travelling). Standard
+            //# GLM would write past the arrays; instead merge this call's inflow into
+            //# the youngest parcel (volume-weighted T, S, WQ). Only reachable when
+            //# MaxPar parcels are in transit, e.g. with many inflow_substeps.
+            int last = Inflows[iRiver].iCnt - 1;
+            AED_REAL qn = Inflows[iRiver].FlowRate * Inflows[iRiver].Factor;
+            AED_REAL qo = Inflows[iRiver].QDown[last];
+            static int warned = FALSE;
+            if ( !warned ) {
+                fprintf(stderr, "     WARNING: inflow %d parcel stack full (MaxPar = %d);"
+                                " merging new inflow into the youngest parcel\n", iRiver+1, MaxPar);
+                warned = TRUE;
+            }
+            Inflows[iRiver].TDown[last] = (Inflows[iRiver].TDown[last]*qo + Inflows[iRiver].TemInf*qn) / (qo+qn);
+            Inflows[iRiver].SDown[last] = (Inflows[iRiver].SDown[last]*qo + Inflows[iRiver].SalInf*qn) / (qo+qn);
+            for (wqidx = 0; wqidx < Num_WQ_Vars; wqidx++)
+                Inflows[iRiver].WQDown[last][wqidx] = (Inflows[iRiver].WQDown[last][wqidx]*qo +
+                                                       Inflows[iRiver].WQInf[wqidx]*qn) / (qo+qn);
+            Inflows[iRiver].QDown[last] = qo + qn;
+            if ( Inflows[iRiver].DDown[last] != MISVAL ) Inflows[iRiver].TotIn += qn;
+
+            ss_density_diag_inflow(iRiver, "inflow", qn, Inflows[iRiver].TemInf, Inflows[iRiver].SalInf,
+                                   Inflows[iRiver].WQInf, surfLayer);
+        } else
         if (Inflows[iRiver].FlowRate * Inflows[iRiver].Factor > zero && !Inflows[iRiver].SubmFlag) {
             Inflows[iRiver].QDown[Inflows[iRiver].iCnt] = Inflows[iRiver].FlowRate * Inflows[iRiver].Factor;
             Inflows[iRiver].TDown[Inflows[iRiver].iCnt] = Inflows[iRiver].TemInf;
@@ -1058,7 +1084,7 @@ AED_REAL do_inflows()
 
                     insert(Inflows[iRiver].QIns[j], Inflows[iRiver].DIIns[j], Inflows[iRiver].Phi,
                               Inflows[iRiver].TIns[j], Inflows[iRiver].SIns[j],
-                                         WQ_VarsTmp[iRiver][j], SecsPerDay, &Inflow_width, &ll);
+                                         WQ_VarsTmp[iRiver][j], (int)inflow_dt, &Inflow_width, &ll);
 
                     ss_density_diag_inflow(iRiver, "insert", Inflows[iRiver].QIns[j],
                                            Inflows[iRiver].TIns[j], Inflows[iRiver].SIns[j],

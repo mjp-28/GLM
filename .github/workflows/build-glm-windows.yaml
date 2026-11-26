@@ -16,7 +16,7 @@ name: Build GLM (Windows)
 
 on:
   push:
-    branches: [ ss-density, ss-density-sedheat, ss-density-sedheat-zonetaub, ss-density-sedheat-zonetaub-area ]
+    branches: [ ss-density, ss-density-sedheat, ss-density-sedheat-zonetaub, ss-density-sedheat-zonetaub-area, ss-density-sedheat-zonetaub-area-subdaily ]
     paths:
       - 'src/**'
       - 'include/**'

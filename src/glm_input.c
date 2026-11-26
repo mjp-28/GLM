@@ -118,17 +118,69 @@ AED_REAL rain_factor = 1.0;
 /******************************************************************************
  *                                                                            *
  ******************************************************************************/
+static void read_inflow_row(int i, AED_REAL *flow, AED_REAL *temp,
+                    AED_REAL *salt, AED_REAL *elev, AED_REAL *wq);
+
 void read_daily_inflow(int julian, int NumInf, AED_REAL *flow,
                                                AED_REAL *temp, AED_REAL *salt,
                                                   AED_REAL *elev, AED_REAL *wq)
 {
-    int csv;
-    int i,j,k;
+    int i;
 
     for (i = 0; i < NumInf; i++) {
-        int n_invars = inf[i].n_vars;
+        find_day(inf[i].inf, time_idx, julian);
+        read_inflow_row(i, flow, temp, salt, elev, wq);
+    }
+}
+/*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+
+
+/******************************************************************************
+ * Sub-daily inflow (inflow_substeps > 1): read the row stamped exactly at    *
+ * day 'julian' + 'secs' seconds (the START of an insertion block). The value *
+ * on that row is the block's mean flow [m3/s] and its flow-weighted          *
+ * concentrations. Every block must have its own row (no interpolation), so  *
+ * a daily file used with inflow_substeps > 1 stops the run with an error.    *
+ ******************************************************************************/
+void read_subdaily_inflow(int julian, int secs, int NumInf, AED_REAL *flow,
+                                               AED_REAL *temp, AED_REAL *salt,
+                                                  AED_REAL *elev, AED_REAL *wq)
+{
+    const AED_REAL tol = 1.0e-6;   //# ~0.09 s, in days
+    AED_REAL target = julian + secs / 86400.0, tr;
+    int i, csv, y, m, d;
+
+    for (i = 0; i < NumInf; i++) {
         csv = inf[i].inf;
-        find_day(csv, time_idx, julian);
+        while ( (tr = get_csv_val_r(csv, time_idx)) < target - tol ) {
+            if ( !load_csv_line(csv) ) {
+                calendar_date(julian, &y, &m, &d);
+                fprintf(stderr, "ERROR: inflow %d: no row for %d-%02d-%02d + %d s (end of file)\n",
+                                i+1, y, m, d, secs);
+                exit(1);
+            }
+        }
+        if ( tr > target + tol ) {
+            calendar_date(julian, &y, &m, &d);
+            fprintf(stderr, "ERROR: inflow %d: no row for %d-%02d-%02d + %d s "
+                            "(inflow_substeps = %d needs one row per block)\n",
+                            i+1, y, m, d, secs, inflow_substeps);
+            exit(1);
+        }
+        read_inflow_row(i, flow, temp, salt, elev, wq);
+    }
+}
+/*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+
+
+/*+--------------------------------------------------------------------------+*/
+static void read_inflow_row(int i, AED_REAL *flow, AED_REAL *temp,
+                    AED_REAL *salt, AED_REAL *elev, AED_REAL *wq)
+{
+    int csv = inf[i].inf;
+    int j, k;
+    {
+        int n_invars = inf[i].n_vars;
 
         flow[i] = get_csv_val_r(csv,inf[i].flow_idx);
         temp[i] = get_csv_val_r(csv,inf[i].temp_idx);

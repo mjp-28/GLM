@@ -380,6 +380,7 @@ void init_glm(int *jstart, char *outp_dir, char *outp_fn, int *nsave)
           { "inflow_vars",       TYPE_STR|MASK_LIST,    &inflow_vars          },
           { "coef_inf_entrain",  TYPE_DOUBLE,           &coef_inf_entrain     },
           { "inflow_wq_entrain_fix", TYPE_BOOL,         &inflow_wq_entrain_fix },
+          { "inflow_substeps",   TYPE_INT,              &inflow_substeps      },
           { "time_fmt",          TYPE_STR,              &timefmt_i            },
           { "timezone",          TYPE_DOUBLE,           &timezone_i           },
           { NULL,                TYPE_END,              NULL                  }

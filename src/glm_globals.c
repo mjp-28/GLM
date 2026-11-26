@@ -151,6 +151,8 @@ AED_REAL XMoment1;
 
 AED_REAL einff;   //# change in potential energy (see do_inflows)
 CLOGICAL inflow_wq_entrain_fix = TRUE; //# dilute inflow WQ by the pre-entrainment parcel volume
+int      inflow_substeps = 1;    //# &inflow: inflow insertions per day (1 = daily, as standard GLM)
+AED_REAL inflow_dt = 86400.0;    //# seconds represented by the current do_inflows call
 AED_REAL coef_mix_KH = 0.3;     //# Kelvin-Helmholtz billowing effects
 AED_REAL coef_mix_conv = 0.125; //# convective overturn
 AED_REAL coef_mix_shear = 0.2;  //# shear efficiency

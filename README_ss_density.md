@@ -195,3 +195,37 @@ bubbler, heat exchange, restart) before this branch, so use the MinGW /
   This is existing GLM behaviour and is left unchanged.
 - Re-injected water (heat exchange, oxygenation recirculation) and
   bubbler plumes keep T/S-only densities.
+
+## Sub-daily inflow insertion (`ss-density-sedheat-zonetaub-area-subdaily` branch)
+
+Standard GLM inserts each inflow once per day as one parcel with the day's
+mean flow and concentrations. During a flood this merges the rising limb with
+the peak, so the whole day's water and sediment plunge as one dense parcel.
+This branch can insert inflows several times per day instead.
+
+`&inflow`:
+
+| entry | default | meaning |
+|---|---|---|
+| `inflow_substeps` | `1` | inflow insertions per day. `1` = standard daily GLM (identical results). `4` = 6-hourly, `24` = hourly. Must divide 86400 s into blocks that are whole multiples of `timestep`, and needs `non_avg = .true.` |
+
+With `inflow_substeps = N > 1`:
+
+- every inflow file must have one row per block, stamped at the **start** of
+  the block (`YYYY-MM-DD hh:mm:ss`, e.g. 00:00, 06:00, 12:00, 18:00 for N = 4).
+  `flow` is the block's mean flow (m3/s), the other columns the block's
+  flow-weighted values. A missing row stops the run (no interpolation, so a
+  daily file cannot be used by mistake);
+- each block's inflows are inserted at the **end** of the block, inside the
+  sub-daily loop; the last block of the day is inserted where the daily
+  insertion normally happens (just before the daily outflows and overflow);
+- the plunge, entrainment and intrusion calculations (`glm_flow.c`,
+  `insert()`) use the block length instead of 86400 s to turn a parcel volume
+  into a rate, so a parcel travels at most one block's worth per call
+  (as it travels at most one day per call in daily GLM);
+- outflows, overflow, evaporation and seepage stay daily;
+- `lake.csv` `Tot Inflow Vol` is the sum of the day's blocks.
+
+Also added (any setting): if an inflow's parcel stack is full (`MaxPar` = 37
+parcels still travelling) the new inflow is merged into the youngest parcel
+with a one-off warning, instead of writing past the arrays.

@@ -118,6 +118,76 @@ int last_step;
 
 
 /******************************************************************************
+ * Sub-daily inflow insertion (&inflow inflow_substeps = N > 1).              *
+ * The day is split into N blocks of 86400/N s. At the END of each block the  *
+ * inflows of that block are inserted (do_inflows), read from the inflow-file *
+ * row stamped at the START of the block. Blocks 1..N-1 are inserted inside   *
+ * do_subdaily_loop; block N where the daily insertion is done (after the     *
+ * sub-daily loop, before the daily outflows/overflow). Outflows, overflow,   *
+ * evaporation and seepage stay daily. With N = 1 nothing here is used and    *
+ * the model is exactly standard (daily) GLM.                                 *
+ ******************************************************************************/
+static AED_REAL *SD_Flow = NULL, *SD_Temp = NULL, *SD_Salt = NULL,
+                *SD_Elev = NULL, *SD_WQ = NULL;
+
+static void check_inflow_substeps(void)
+{
+    int blk;
+    if ( inflow_substeps == 1 ) return;
+    if ( inflow_substeps < 1 || iSecsPerDay % inflow_substeps != 0 ) {
+        fprintf(stderr, "     ERROR: inflow_substeps (%d) must be >= 1 and divide 86400\n", inflow_substeps);
+        exit(1);
+    }
+    blk = iSecsPerDay / inflow_substeps;
+    if ( blk % (int)timestep != 0 ) {
+        fprintf(stderr, "     ERROR: inflow block (%d s) is not a multiple of the time step (%d s)\n",
+                        blk, (int)timestep);
+        exit(1);
+    }
+    if ( !non_avg ) {
+        fprintf(stderr, "     ERROR: inflow_substeps > 1 needs non_avg = .true. in &glm_setup\n");
+        exit(1);
+    }
+    if (quiet < 10)
+        printf("     Inflow insertion: %d blocks per day (every %g h)\n", inflow_substeps, blk/3600.);
+}
+
+/*----------------------------------------------------------------------------*/
+static AED_REAL do_inflow_block(int jday, int block)
+{
+    int i, j, blk = iSecsPerDay / inflow_substeps;
+    AED_REAL dv;
+
+    if ( SD_Flow == NULL ) {
+        SD_Flow = calloc(MaxInf, sizeof(AED_REAL));
+        SD_Temp = calloc(MaxInf, sizeof(AED_REAL));
+        SD_Salt = calloc(MaxInf, sizeof(AED_REAL));
+        SD_Elev = calloc(MaxInf, sizeof(AED_REAL));
+        SD_WQ   = calloc((size_t)MaxInf * MaxVars, sizeof(AED_REAL));
+    }
+    read_subdaily_inflow(jday, block * blk, NumInf, SD_Flow, SD_Temp, SD_Salt, SD_Elev, SD_WQ);
+
+    //# block inflow [m3/s] -> volume of this block [m3]
+    for (i = 0; i < NumInf; i++) {
+        Inflows[i].FlowRate = SD_Flow[i] * blk;
+        Inflows[i].TemInf   = SD_Temp[i];
+        Inflows[i].SalInf   = SD_Salt[i];
+        Inflows[i].SubmHeight = SD_Elev[i];
+        for (j = 0; j < Num_WQ_Vars; j++)
+            Inflows[i].WQInf[j] = WQ_INF_(SD_WQ, i, j);
+        wq_inflow_update(Inflows[i].WQInf, &Num_WQ_Vars, &Inflows[i].TemInf, &Inflows[i].SalInf);
+    }
+
+    inflow_dt = blk;            //# glm_flow.c: parcel volume per call -> rate
+    ss_density_set_day(jday);   //# date for the inflow diagnostics
+    dv = do_inflows();
+    inflow_dt = SecsPerDay;
+    return dv;
+}
+/*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+
+
+/******************************************************************************
  *                                                                            *
  ******************************************************************************/
 void run_model()
@@ -130,6 +200,8 @@ void run_model()
 
     begn = time(NULL);
     if (quiet < 10) printf("\n     Wall clock start time :  %s", ctime_r(&begn, buf));
+
+    check_inflow_substeps();
 
     if (non_avg)
         do_model_non_avg(jstart, nsave);
@@ -635,6 +707,8 @@ void do_model_non_avg(int jstart, int nsave)
         SurfData.dailyRunoff  = 0.; SurfData.albedo        = 1.;
 
         //# Read & set today's inflow properties
+        //# (with inflow_substeps > 1 they are read per block in do_inflow_block)
+        if ( inflow_substeps == 1 )
         read_daily_inflow(jday, NumInf, FlowNew, TempNew, SaltNew, Elev, WQNew);
 //      read_daily_gw(jday, gw_mode, GWFlNew);
         read_daily_evap(jday, &DailyEvap);
@@ -642,6 +716,7 @@ void do_model_non_avg(int jstart, int nsave)
         f_evap_ts_prop = -DailyEvap / SecsPerDay;
 
         //# To get daily inflow (i.e. m3/day) times by SecsPerDay
+        if ( inflow_substeps == 1 )
         for (i = 0; i < NumInf; i++) {
             Inflows[i].FlowRate = FlowNew[i] * day_fraction * iSecsPerDay;
             Inflows[i].TemInf   = TempNew[i];
@@ -707,8 +782,13 @@ void do_model_non_avg(int jstart, int nsave)
 
         if (!is_partial_end_with_restart) {
          //# Insert inflows for all streams
+        if ( inflow_substeps == 1 ) {
         ss_density_set_day(jday);   //# date for the inflow diagnostics
         SurfData.dailyInflow = do_inflows();
+        } else if ( stoptime == iSecsPerDay ) {
+        //# last block of the day (blocks 1..N-1 were inserted in do_subdaily_loop)
+        SurfData.dailyInflow += do_inflow_block(jday, inflow_substeps - 1);
+        }
 
         if (Lake[surfLayer].Vol1 > zero) {
            //# Extract withdrawal from all offtakes
@@ -1070,6 +1150,14 @@ int do_subdaily_loop(int stepnum, int jday, int stoptime, int nsave, AED_REAL SW
         if ( subdaily ) SWold = SWnew;
 
         if ( bubbler_on ) do_bubbler(jday, iclock);
+
+        //# Sub-daily inflow insertion: blocks ending inside the day
+        //# (the last block is inserted with the daily outflows, after this loop)
+        if ( inflow_substeps > 1 ) {
+            int t_end = iclock + noSecs, blk = iSecsPerDay / inflow_substeps;
+            if ( t_end % blk == 0 && t_end < iSecsPerDay )
+                SurfData.dailyInflow += do_inflow_block(jday, t_end / blk - 1);
+        }
 
 //      printf("stepnum %d\n", stepnum);
         iclock += noSecs;
