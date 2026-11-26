@@ -435,6 +435,9 @@ extern FLOGICAL do_particle_bgc;
 extern FLOGICAL link_ext_par;
 extern FLOGICAL zone_taub;
 extern CLOGICAL bottom_settle;
+extern CLOGICAL zone_taub_area;
+extern AED_REAL zone_taub_hmin;
+extern FLOGICAL zone_flux_fix;
 
 extern CINTEGER split_factor;
 extern CINTEGER ode_method;

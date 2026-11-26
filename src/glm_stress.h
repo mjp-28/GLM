@@ -36,5 +36,6 @@
 #define _GLM_STRESS_H_
 
 void calc_layer_stress(AED_REAL U, AED_REAL F);
+AED_REAL zone_area_stress(AED_REAL zb, AED_REAL zt);  //# &wq_setup zone_taub_area (glm_zones.F90)
 
 #endif

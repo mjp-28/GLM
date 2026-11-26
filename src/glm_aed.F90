@@ -1298,7 +1298,7 @@ CONTAINS
    !LOCALS
       INTEGER :: lev,zon,v,av,sv,sd, zlev
       INTEGER :: layer_map(wlev)
-      AED_REAL :: scale
+      AED_REAL :: scale, zbot
       AED_REAL :: localrainl(n_zones), localshade(n_zones), localdrag(n_zones)
       LOGICAL :: splitZone
       TYPE(aed_variable_t),POINTER :: tvar
@@ -1416,34 +1416,61 @@ CONTAINS
 !$OMP END DO
 
          !# Disaggregation of zone induced fluxes to overlying layers
-         zon = n_zones
-         DO lev=wlev,1,-1
-            IF ( zon .GT. 1 ) THEN
-               IF (lev .GT. 1) THEN
-                  splitZone = lheights(lev-1) < zone_heights(zon-1)
+         IF ( zone_flux_fix ) THEN
+            !# zone_flux_fix (&wq_setup): for each layer from the top, step down to the zone that holds the layer's top;
+            !# split a layer only if a zone boundary lies inside it, giving the upper zone the share ABOVE the boundary.
+            !# (The original code below starts in zone n_zones even when it is an empty zone above the water - GLM adds one
+            !# when the last zone height is not above the basin top - computes an unbounded split fraction for the surface
+            !# layer, and gives each zone the other zone's share of a split layer.)
+            zon = n_zones
+            DO lev=wlev,1,-1
+               DO WHILE ( zon > 1 )
+                  IF ( lheights(lev) > zone_heights(zon-1) ) EXIT
+                  zon = zon - 1
+               ENDDO
+               IF ( lev > 1 ) THEN
+                  zbot = lheights(lev-1)
                ELSE
-                  splitZone = 0.0 < zone_heights(zon-1)
+                  zbot = 0.0
                ENDIF
-            ELSE
-               splitZone = .FALSE.
-            ENDIF
-
-            IF (splitZone) THEN
-               IF (lev .GT. 1) THEN
-                  scale = (zone_heights(zon-1) - lheights(lev-1)) / (lheights(lev) - lheights(lev-1))
+               IF ( zon > 1 .AND. zbot < zone_heights(zon-1) ) THEN
+                  scale = (lheights(lev) - zone_heights(zon-1)) / (lheights(lev) - zbot)   ! share above the boundary
+                  flux_pel(1:n_vars,lev) = flux_pel_z(1:n_vars,zon) * scale + flux_pel_z(1:n_vars,zon-1) * (1.0 - scale)
+                  zon = zon - 1
                ELSE
-                  scale = (zone_heights(zon-1) - 0.0) / (lheights(lev) - 0.0)
+                  flux_pel(1:n_vars,lev) = flux_pel_z(1:n_vars,zon)
                ENDIF
-               flux_pel(1:n_vars,lev) = flux_pel_z(1:n_vars,zon) * scale
+            ENDDO
+         ELSE
+            zon = n_zones
+            DO lev=wlev,1,-1
+               IF ( zon .GT. 1 ) THEN
+                  IF (lev .GT. 1) THEN
+                     splitZone = lheights(lev-1) < zone_heights(zon-1)
+                  ELSE
+                     splitZone = 0.0 < zone_heights(zon-1)
+                  ENDIF
+               ELSE
+                  splitZone = .FALSE.
+               ENDIF
 
-               zon = zon - 1
+               IF (splitZone) THEN
+                  IF (lev .GT. 1) THEN
+                     scale = (zone_heights(zon-1) - lheights(lev-1)) / (lheights(lev) - lheights(lev-1))
+                  ELSE
+                     scale = (zone_heights(zon-1) - 0.0) / (lheights(lev) - 0.0)
+                  ENDIF
+                  flux_pel(1:n_vars,lev) = flux_pel_z(1:n_vars,zon) * scale
 
-               flux_pel(1:n_vars,lev) = flux_pel(1:n_vars,lev) + &
-                                        flux_pel_z(1:n_vars,zon) * (1.0 - scale)
-            ELSE
-               flux_pel(1:n_vars,lev) = flux_pel_z(1:n_vars,zon)
-            ENDIF
-         ENDDO
+                  zon = zon - 1
+
+                  flux_pel(1:n_vars,lev) = flux_pel(1:n_vars,lev) + &
+                                           flux_pel_z(1:n_vars,zon) * (1.0 - scale)
+               ELSE
+                  flux_pel(1:n_vars,lev) = flux_pel_z(1:n_vars,zon)
+               ENDIF
+            ENDDO
+         ENDIF
          !# Limit flux out of bottom waters to concentration of that layer
          !# i.e. don't flux out more than is there & distribute
          !# bottom flux into pelagic over bottom box (i.e., divide by layer height).

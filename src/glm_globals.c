@@ -55,6 +55,9 @@ int Tot_WQ_Vars = 0;   //# nVars+nBen
 int Num_WQD_Vars = 0;  //# number of diagnostic water quality variables
 int Num_WQDS_Vars = 0; //# number of diagnostic benthic water quality variables
 
+CLOGICAL zone_taub_area = FALSE; //# &wq_setup: zone stress = wave stress averaged over the zone's bed area (glm_stress.c
+                                 //  zone_area_stress); needs zone_taub = .true.; default off
+AED_REAL zone_taub_hmin = 0.25;  //# &wq_setup: shallowest bed depth [m] used for that stress (swash / breaking fringe)
 CLOGICAL bottom_settle = FALSE; //# &wq_setup: particles also settle out of the
                                 //  bottom layer (glm_mobl.c Sinking); default off
 

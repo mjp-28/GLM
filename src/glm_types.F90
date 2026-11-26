@@ -261,6 +261,9 @@ MODULE glm_types
    TYPE(FLOGICAL),BIND(C, name="link_ext_par")       :: link_ext_par = .FALSE.
    !# zone_taub: sediment zones use their own zone-mean layer stress (see glm_aed.F90)
    TYPE(FLOGICAL),BIND(C, name="zone_taub")          :: zone_taub = .FALSE.
+   !# zone_flux_fix: zone -> layer flux hand-off uses the share of each layer above / below a zone boundary the right way round,
+   !# and splits a layer only where a boundary lies inside it (see glm_aed.F90 calculate_fluxes)
+   TYPE(FLOGICAL),BIND(C, name="zone_flux_fix")      :: zone_flux_fix = .FALSE.
 
    !# Dynamic sediment soil-temperature model (sed_heat_model = 2): the per-step
    !# timestep (set from noSecs by glm_surface.c) and the soil thermal properties

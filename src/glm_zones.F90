@@ -61,6 +61,15 @@ MODULE glm_zones
 !  PUBLIC z_cc, z_cc_hz, z_diag, z_diag_hz, theZones, theLake
    PUBLIC z_cc, z_diag, z_diag_hz, theZones, theLake
 
+   !# zone_taub_area (&wq_setup): C function in glm_stress.c; returns -1 when the switch is off
+   INTERFACE
+      FUNCTION zone_area_stress(zb, zt) BIND(C, name="zone_area_stress")
+         USE ISO_C_BINDING
+         REAL(C_DOUBLE),VALUE :: zb, zt
+         REAL(C_DOUBLE) :: zone_area_stress
+      END FUNCTION zone_area_stress
+   END INTERFACE
+
 CONTAINS
 
 !###############################################################################
@@ -156,6 +165,7 @@ SUBROUTINE copy_to_zone(x_cc, x_diag, wlev)
 !LOCALS
    INTEGER  :: zon, lev, a_zones
    AED_REAL :: surf
+   AED_REAL :: zstress_a
    INTEGER  :: zcount(n_zones)
    LOGICAL  :: w_zones
 !
@@ -249,6 +259,17 @@ SUBROUTINE copy_to_zone(x_cc, x_diag, wlev)
       theZones%zextc         = 0.
       theZones%zlayer_stress = 0.
    ENDWHERE
+
+   !# zone_taub_area: replace each zone's layer-mean stress by the wave stress averaged over the zone's own bed area
+   !# (glm_stress.c zone_area_stress; -1 = switch off, keep the layer mean)
+   DO zon=1,n_zones
+      IF ( zon == 1 ) THEN
+         zstress_a = zone_area_stress(0.0_C_DOUBLE, zone_heights(1))
+      ELSE
+         zstress_a = zone_area_stress(zone_heights(zon-1), zone_heights(zon))
+      ENDIF
+      IF ( zstress_a >= 0. ) theZones(zon)%zlayer_stress = zstress_a
+   ENDDO
 
    theZones%zdz = 0.
    surf = lheights(wlev)

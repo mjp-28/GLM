@@ -47,6 +47,7 @@
 
 AED_REAL Hs = 0., T = 0., L = 0.;
 static AED_REAL BottomStress = 0.;
+static AED_REAL U_last = 0., F_last = 0.;   //# zone_area_stress: wind and fetch of the last calc_layer_stress
 
 #define DEBUG_STRESS  0
 #define DEBUG_STRESS_CSV  0
@@ -136,6 +137,7 @@ void calc_layer_stress(AED_REAL U, AED_REAL F)
 
 
     if (ice) U = 0.00001;
+    U_last = U; F_last = F;
 
 #if DEBUG_STRESS_CSV
     if ( new_run ) {
@@ -201,6 +203,7 @@ void calc_layer_stress(AED_REAL U, AED_REAL F)
         }
     }
     BottomStress = Lake[botmLayer].LayerStress;
+    if ( U <= 0.001 ) Hs = 0.;   //# no waves: zone_area_stress returns 0
 
 #if DEBUG_STRESS_CSV
     fprintf(csv_dbg, "%d, %e, %e, %e, %e, %e, %e\n",
@@ -213,4 +216,53 @@ void calc_layer_stress(AED_REAL U, AED_REAL F)
     seenit = TRUE;
     stepno++;
 #endif
+}
+
+
+/******************************************************************************
+ * area_at_height  (zone_taub_area helper)                                    *
+ *   Plan area of the lake at height h above the bottom, from the same        *
+ *   morphometry arrays GLM uses for layer areas (glm_mixu.c resize_internals) *
+ ******************************************************************************/
+static AED_REAL area_at_height(AED_REAL h)
+{
+    AED_REAL x = h * MphInc, y = AMOD(x, 1.0);
+    int ij = (x - y);
+    if (ij > Nmorph) { y += (ij - Nmorph); ij = Nmorph; }
+    if (ij > 0) { ij--; return MphLevelArea[ij] + y * dMphLevelArea[ij]; }
+    return MphLevelArea[0];
+}
+
+/******************************************************************************
+ * zone_area_stress  (&wq_setup zone_taub_area; called from glm_zones.F90)    *
+ *   Wave bed stress averaged over the bed area of a sediment zone (heights   *
+ *   zb..zt above the bottom, cut at the water surface), in 5 cm height bands. *
+ *   Each band uses the wave orbital velocity at its own depth (same Hs, T, L  *
+ *   and friction factor as calc_layer_stress), with depth floored at          *
+ *   max(zone_taub_hmin, 1.28 Hs) for the swash / breaking fringe.             *
+ *   Returns -1 when zone_taub_area is off (the layer-mean stress is kept).    *
+ ******************************************************************************/
+AED_REAL zone_area_stress(AED_REAL zb, AED_REAL zt)
+{
+    AED_REAL surf, top, h, h2, dA, depth, dmin, Uorb, tau, sum = 0., wsum = 0., dens;
+    const AED_REAL dh = 0.05;
+
+    if ( !zone_taub_area ) return -1.;
+    if ( ice || U_last <= 0.001 || Hs <= 0. ) return 0.;
+    surf = Lake[surfLayer].Height;
+    top = MIN(zt, surf);
+    if ( top <= zb ) return 0.;
+    dens = Lake[surfLayer].Density;
+    dmin = MAX(zone_taub_hmin, 1.28 * Hs);
+    for (h = zb; h < top; h += dh) {
+        h2 = MIN(h + dh, top);
+        dA = area_at_height(h2) - area_at_height(h);
+        if ( dA <= 0. ) continue;
+        depth = surf - 0.5 * (h + h2);
+        if ( depth < dmin ) depth = dmin;
+        Uorb = MIN( f_Uorb(F_last, depth), 5.0 );
+        tau  = dens * 0.5 * wave_friction_factor(Uorb, dens) * pow(Uorb, 2);
+        sum += tau * dA; wsum += dA;
+    }
+    return (wsum > 0.) ? sum / wsum : 0.;
 }
