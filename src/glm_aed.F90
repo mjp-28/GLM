@@ -104,6 +104,9 @@ MODULE glm_aed
 
    AED_REAL,DIMENSION(:),ALLOCATABLE,TARGET :: depth
    AED_REAL,DIMENSION(:),ALLOCATABLE,TARGET :: layer_area  ! incremental area per layer (area(i)-area(i-1))
+   !# DEBUG resus-sink (temporary): water index of NCS_ss1 and a print counter
+   INTEGER :: dbg_v = -1, dbg_n = 0
+   LOGICAL :: dbg_on = .FALSE.
    AED_REAL,TARGET :: col_depth
    AED_REAL,TARGET :: col_num = 1
 
@@ -1058,6 +1061,10 @@ SUBROUTINE aed_do_glm(wlev)                             BIND(C, name=_WQ_DO_GLM)
 
       !# Update the water column layers
       cc(1:n_vars, 1:wlev) = cc(1:n_vars, 1:wlev) + dt_eff*flux_pel(1:n_vars, 1:wlev)
+      IF ( dbg_on ) THEN
+         print '(A,I5,A,4ES12.4,A,ES12.4)', 'DBGRS ', dbg_n, ' P5 cc after integration top4 ', cc(dbg_v, wlev:wlev-3:-1), ' dt_eff ', dt_eff
+         dbg_n = dbg_n + 1
+      ENDIF
 
       !# Now update benthic variables, depending on whether zones are simulated
       IF ( benthic_mode .GT. 1 ) THEN
@@ -1311,6 +1318,18 @@ CONTAINS
 
       flux_pel_pre = zero_
       flux_pel_z = zero_
+      IF ( dbg_v < 0 ) THEN
+         dbg_v = 0 ; v = 0
+         DO av=1,n_aed_vars
+            IF ( aed_get_var(av, tvar) ) THEN
+               IF ( tvar%var_type == V_STATE .AND. .NOT. tvar%sheet ) THEN
+                  v = v + 1
+                  IF ( TRIM(tvar%name) == 'NCS_ss1' ) dbg_v = v
+               ENDIF
+            ENDIF
+         ENDDO
+         print *, 'DBGRS NCS_ss1 water index = ', dbg_v, ' n_vars = ', n_vars
+      ENDIF
 
       !# Start with updating column (used for light, bubbles, plants, phreeqc)
 
@@ -1415,6 +1434,14 @@ CONTAINS
          ENDDO
 !$OMP END DO
 
+         dbg_on = ( dbg_v > 0 .AND. dbg_n < 300 )
+         IF ( dbg_on ) dbg_on = ( flux_pel_z(dbg_v, n_zones) > 0. )
+         IF ( dbg_on ) THEN
+            print '(A,I5,A,I4,A,10ES12.4)', 'DBGRS ', dbg_n, ' wlev', wlev, ' P0 zone fluxes 1..n ', flux_pel_z(dbg_v, 1:n_zones)
+            print '(A,I5,A,4F10.4,A,5F9.3)', 'DBGRS ', dbg_n, ' heights top4 ', lheights(wlev:wlev-3:-1), ' zone_heights ', zone_heights(1:n_zones)
+            print '(A,I5,A,4ES12.4,A,4ES12.4)', 'DBGRS ', dbg_n, ' area top4 ', area(wlev:wlev-3:-1), ' dz top4 ', dz(wlev:wlev-3:-1)
+            print '(A,I5,A,4ES12.4)', 'DBGRS ', dbg_n, ' cc top4 ', cc(dbg_v, wlev:wlev-3:-1)
+         ENDIF
          !# Disaggregation of zone induced fluxes to overlying layers
          zon = n_zones
          DO lev=wlev,1,-1
@@ -1444,6 +1471,7 @@ CONTAINS
                flux_pel(1:n_vars,lev) = flux_pel_z(1:n_vars,zon)
             ENDIF
          ENDDO
+         IF ( dbg_on ) print '(A,I5,A,4ES12.4)', 'DBGRS ', dbg_n, ' P1 after disaggregation top4 ', flux_pel(dbg_v, wlev:wlev-3:-1)
          !# Limit flux out of bottom waters to concentration of that layer
          !# i.e. don't flux out more than is there & distribute
          !# bottom flux into pelagic over bottom box (i.e., divide by layer height).
@@ -1491,6 +1519,7 @@ CONTAINS
          ENDIF
       ENDIF
 
+      IF ( dbg_on ) print '(A,I5,A,4ES12.4)', 'DBGRS ', dbg_n, ' P2 after area+limit top4 ', flux_pel(dbg_v, wlev:wlev-3:-1)
       !# (3) SURFACE FLUXES
       !# Calculate temporal derivatives due to air-water exchange.
       IF (.NOT. ice) THEN !# no surface exchange under ice cover
@@ -1500,11 +1529,13 @@ CONTAINS
          flux_pel(:, wlev) = flux_pel(:, wlev) + flux_atm(:)/dz(wlev)
       ENDIF
 
+      IF ( dbg_on ) print '(A,I5,A,4ES12.4,A,ES12.4)', 'DBGRS ', dbg_n, ' P3 after surface top4 ', flux_pel(dbg_v, wlev:wlev-3:-1), ' flux_atm ', flux_atm(dbg_v)
       !# (4) WATER CELL KINETICS
       !# Add pelagic sink and source terms in cells of all depth levels.
       DO lev=1,wlev
          CALL aed_calculate(column, lev)
       ENDDO
+      IF ( dbg_on ) print '(A,I5,A,4ES12.4)', 'DBGRS ', dbg_n, ' P4 after pelagic top4 ', flux_pel(dbg_v, wlev:wlev-3:-1)
 
    END SUBROUTINE calculate_fluxes
    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
