@@ -105,7 +105,7 @@ MODULE glm_aed
    AED_REAL,DIMENSION(:),ALLOCATABLE,TARGET :: depth
    AED_REAL,DIMENSION(:),ALLOCATABLE,TARGET :: layer_area  ! incremental area per layer (area(i)-area(i-1))
    !# DEBUG resus-sink (temporary): water index of NCS_ss1 and a print counter
-   INTEGER :: dbg_v = -1, dbg_n = 0
+   INTEGER :: dbg_v = -1, dbg_n = 0, dbg_z = 0
    LOGICAL :: dbg_on = .FALSE.
    AED_REAL,TARGET :: col_depth
    AED_REAL,TARGET :: col_num = 1
@@ -1431,11 +1431,19 @@ CONTAINS
             !# Now we have to find out the water column flux that occured and
             !# (incremented in flux_pel) and then disaggregate it to relevant layers
             flux_pel_z(:, zon) = flux_pel(:, zon)-flux_pel_pre(:, zon)
+            IF ( dbg_v > 0 .AND. dbg_z < 600 ) THEN
+               IF ( flux_pel(dbg_v, zon) /= flux_pel_pre(dbg_v, zon) .OR. theZones(zon)%zlayer_stress > 0.05 ) THEN
+                  print '(A,I5,A,I2,A,I4,A,5ES12.4)', 'DBGZ ', dbg_z, ' zon', zon, ' wlev', wlev, &
+                     ' pre/post/z flux(ss1,zon), zstress, flux(ss1,wlev) ', flux_pel_pre(dbg_v, zon), flux_pel(dbg_v, zon), &
+                     flux_pel_z(dbg_v, zon), theZones(zon)%zlayer_stress, flux_pel(dbg_v, wlev)
+                  dbg_z = dbg_z + 1
+               ENDIF
+            ENDIF
          ENDDO
 !$OMP END DO
 
          dbg_on = ( dbg_v > 0 .AND. dbg_n < 300 )
-         IF ( dbg_on ) dbg_on = ( flux_pel_z(dbg_v, n_zones) > 0. )
+         IF ( dbg_on ) dbg_on = ANY( flux_pel_z(dbg_v, 1:n_zones) /= 0. )
          IF ( dbg_on ) THEN
             print '(A,I5,A,I4,A,10ES12.4)', 'DBGRS ', dbg_n, ' wlev', wlev, ' P0 zone fluxes 1..n ', flux_pel_z(dbg_v, 1:n_zones)
             print '(A,I5,A,4F10.4,A,5F9.3)', 'DBGRS ', dbg_n, ' heights top4 ', lheights(wlev:wlev-3:-1), ' zone_heights ', zone_heights(1:n_zones)
