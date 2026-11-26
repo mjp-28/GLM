@@ -837,7 +837,10 @@ static int insert_inflow(int k, //# Inflow parcel counter
             flag = TRUE;
 
         if ( flag ) { //#Insert inflow parcel and re-calculate cumulative volumes, then return to do_inflows
-            einff += Inflow_Energy/Inflow_time;
+            //# Inflow_time is in units of one do_inflows call (a day in daily GLM, a block
+            //# with inflow_substeps > 1); convert to days so einff (used by do_dissipation)
+            //# means the same as in daily GLM. inflow_dt / SecsPerDay = 1.0 exactly when daily.
+            einff += Inflow_Energy/(Inflow_time * (inflow_dt / SecsPerDay));
             if (Layer == botmLayer) Lake[botmLayer].Vol1 = Lake[botmLayer].LayerVol;
             if (Layer != botmLayer) Lake[Layer].Vol1 = Lake[Layer-1].Vol1 + Lake[Layer].LayerVol;
             for (kk = Layer+1; kk <= surfLayer; kk++)
